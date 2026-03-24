@@ -6,3 +6,8 @@ coverage/
 *.log
 .env*
 !.env.example
+.azure/
+azure-logs/
+azure-logs.zip
+deploy-*.zip
+github-oidc-credential.json

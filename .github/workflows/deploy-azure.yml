@@ -1,0 +1,60 @@
+name: Deploy Azure Web App
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AZURE_WEBAPP_NAME: lanobe-jpe-764788
+  AZURE_RESOURCE_GROUP: rg-lanobe-japaneast
+  AZURE_CLIENT_ID: 31b69233-5a9e-46c9-b316-66c4db5ab72a
+  AZURE_TENANT_ID: 1b693c95-d364-4b76-993b-f76c50fa37a3
+  AZURE_SUBSCRIPTION_ID: 156607c2-d2c0-43ae-ad31-d9001d9a6e28
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate locally
+        run: npm run test:local
+
+      - name: Create deployment archive
+        run: git archive --format=zip --output deploy.zip HEAD
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure Web App
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az webapp deploy \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name "$AZURE_WEBAPP_NAME" \
+              --src-path deploy.zip \
+              --type zip \
+              --restart true \
+              --track-status true

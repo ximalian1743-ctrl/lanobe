@@ -1,0 +1,197 @@
+Lanobe V1 UX Upgrade Backlog
+Date: 2026-03-25
+Project: ximalian.cc.cd / lanobe
+
+==================================================
+1. Current Progress Snapshot
+==================================================
+
+As of tonight, the usable V1 loop is already in place:
+
+1. Main navigation site exists
+2. /lanobe and /lanobe/bookshelf are accessible
+3. The built-in novel series "败犬女主太多了" is published inside the site
+4. Clicking a built-in volume opens the reused reader interface
+5. Reader progress is saved locally by book and volume
+6. Listening and display preferences are already persisted in browser storage
+7. GitHub -> Azure deployment automation is working
+8. Public access through Cloudflare HTTPS is working
+
+That means the product is no longer only a single reader page.
+It is already a basic website product shell with shelf -> reader -> resume capability.
+
+==================================================
+2. Main Experience Problems Still Present
+==================================================
+
+The next development step should focus on user experience upgrade instead of adding more backend complexity.
+
+The following problems are currently visible:
+
+1. Language switching is incomplete
+   - The UI should support one-click switching between Chinese, Japanese, and English
+   - This includes homepage, bookshelf, reader controls, modal copy, and status text
+
+2. The volume selector top overlay stays visible all the time
+   - After opening a volume, the floating selector bar remains on screen
+   - It occupies attention and should not permanently block the reading view
+
+3. Important controls are not always reachable
+   - Settings should be callable at any time without manually scrolling upward
+   - The reader needs a fixed utility zone near locate/search or equivalent action buttons
+
+4. There is no clear safe exit path
+   - The user should have a direct "save and return to bookshelf" action
+   - Even though progress is auto-saved, the product should communicate that clearly
+
+5. Overall control placement still needs coordination
+   - Some buttons, control sizes, spacing, and fixed-position components need responsive review
+   - Desktop and mobile should feel coordinated instead of patched together
+
+6. Existing encoding and copy issues still hurt polish
+   - Some legacy components still show garbled text
+   - Copy tone is not yet unified across the full site
+
+==================================================
+3. Next Step Goal
+==================================================
+
+Next step should be:
+
+Upgrade the full V1 reading experience so the site feels intentional, multilingual, controllable, and easier to navigate.
+
+This is a UX stabilization step, not a backend expansion step.
+
+==================================================
+4. Recommended Scope For The Next Iteration
+==================================================
+
+The next implementation round should include these deliverables:
+
+1. Global UI language system
+   - Add a site-level language state: zh / ja / en
+   - Provide one-click switching
+   - Replace hard-coded page copy with translation dictionary lookups
+
+2. Reader top overlay redesign
+   - Convert the current always-visible volume panel into a collapsible drawer or utility header
+   - Keep access to volume switching, but let it dismiss by default after entry
+
+3. Persistent quick actions in reader
+   - Add a fixed action cluster near the existing locate/search area
+   - Include at least:
+     - settings
+     - chapter list
+     - locate current line
+     - return to bookshelf
+
+4. Explicit return and save UX
+   - Add a visible exit action
+   - Copy should explain that local progress is auto-saved
+   - Returning to bookshelf should feel safe and intentional
+
+5. Responsive layout polish
+   - Audit button size, safe area spacing, overlay stacking, and mobile reachability
+   - Reduce always-floating elements that compete for the same visual layer
+
+6. Copy and encoding cleanup
+   - Remove remaining mojibake / garbled text
+   - Unify page wording under the new language system
+
+==================================================
+5. Priority Order
+==================================================
+
+Recommended implementation priority:
+
+P0
+1. Multilingual UI architecture
+2. Reader utility action area
+3. Exit / return to bookshelf path
+
+P1
+4. Volume selector collapse behavior
+5. Responsive layout tuning
+
+P2
+6. Final copy polish and visual refinement
+
+Reason:
+
+Without a language system and always-reachable controls, the current reader experience still feels like an internal tool.
+Those two changes will have the biggest impact on usability.
+
+==================================================
+6. Suggested Technical Approach
+==================================================
+
+6.1 Language switching
+
+Recommended approach:
+
+1. Add a lightweight i18n layer in the frontend
+2. Keep a translation dictionary file in the project
+3. Persist the selected UI language in localStorage through Zustand
+4. Start by translating:
+   - homepage
+   - lanobe landing page
+   - bookshelf
+   - reader overlay
+   - major controls
+   - modals
+
+Recommended initial language codes:
+
+1. zh-CN
+2. ja-JP
+3. en-US
+
+6.2 Reader action layout
+
+Recommended approach:
+
+1. Keep the main bottom controls for playback
+2. Add a second fixed compact utility bar for non-playback actions
+3. Avoid mixing navigation actions with transport actions
+
+Suggested utility actions:
+
+1. settings
+2. chapters
+3. locate
+4. search
+5. bookshelf
+
+6.3 Exit flow
+
+Recommended approach:
+
+1. Add a dedicated return button inside reader utility actions
+2. Show a short saved-status text near it
+3. Do not require a modal confirmation unless unsaved temporary state exists
+
+==================================================
+7. Definition Of Done For The Next Step
+==================================================
+
+The next UX upgrade step is complete when:
+
+1. All major pages can switch between Chinese, Japanese, and English
+2. The selected UI language persists locally
+3. The reader exposes settings and chapter actions without requiring scroll-back
+4. A user can safely return to bookshelf from anywhere in the reader
+5. The floating volume selector no longer permanently occupies the reading area
+6. Mobile and desktop both have coordinated control spacing
+7. No major garbled text remains in visible user-facing controls
+
+==================================================
+8. Decision For Tomorrow
+==================================================
+
+Tomorrow's work should start from:
+
+1. Build the UI language state and translation dictionary
+2. Then refactor the reader top overlay and quick action layout
+3. Then clean up exit flow and responsive polish
+
+This keeps the next development round focused and high impact.

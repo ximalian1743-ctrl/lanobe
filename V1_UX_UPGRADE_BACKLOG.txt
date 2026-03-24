@@ -2,6 +2,21 @@ Lanobe V1 UX Upgrade Backlog
 Date: 2026-03-25
 Project: ximalian.cc.cd / lanobe
 
+Implementation update (completed tonight):
+
+1. Added persistent zh / ja / en UI language switching
+2. Wired the main site pages, bookshelf, reader toolbar, settings modal, chapter modal, and entry list to the language system
+3. Reworked the reader into a compact fixed top bar plus collapsible volume panel
+4. Added always-reachable quick actions for settings, chapters, volume panel, locate, search, and return-to-bookshelf
+5. Added clearer local auto-save messaging and a safer bookshelf return path
+6. Updated bookshelf progress cards so resume text follows the current UI language
+
+Remaining polish after this pass:
+
+1. Legacy hidden header component still contains old text and can be cleaned later if that workflow returns
+2. Built-in book JSON source files can still be normalized later, although visible UI now overrides them cleanly
+3. Further spacing and visual polish can continue in later refinement rounds
+
 ==================================================
 1. Current Progress Snapshot
 ==================================================

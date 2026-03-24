@@ -1,50 +1,52 @@
-import React from 'react';
-import { X, List } from 'lucide-react';
+﻿import React from 'react';
+import { List, X } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
+import { useUiText } from '../hooks/useUiText';
 
 export function ChaptersModal({ onClose }: { onClose: () => void }) {
   const { chapters, currentIndex, setCurrentIndex } = useAppStore();
+  const { text, format } = useUiText();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[80vh]">
-        <div className="flex items-center justify-between p-6 border-b border-slate-800">
-          <h2 className="text-xl font-bold text-slate-200 flex items-center gap-2">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-800 p-6">
+          <h2 className="flex items-center gap-2 text-xl font-bold text-slate-200">
             <List size={24} className="text-blue-400" />
-            章节目录
+            {text.chaptersModal.title}
           </h2>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl transition-colors">
+          <button onClick={onClose} className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200">
             <X size={20} />
           </button>
         </div>
-        <div className="overflow-y-auto p-4 space-y-2">
-          {chapters.map((chapter, i) => {
-            const isCurrent = currentIndex >= chapter.index && (i === chapters.length - 1 || currentIndex < chapters[i + 1].index);
+        <div className="space-y-2 overflow-y-auto p-4">
+          {chapters.map((chapter, index) => {
+            const isCurrent =
+              currentIndex >= chapter.index && (index === chapters.length - 1 || currentIndex < chapters[index + 1].index);
+
             return (
               <button
-                key={i}
+                key={`${chapter.title}-${chapter.index}`}
                 onClick={() => {
                   setCurrentIndex(chapter.index);
                   onClose();
                 }}
-                className={`w-full text-left p-4 rounded-2xl transition-all ${
-                  isCurrent 
-                    ? 'bg-blue-600/20 border border-blue-500/30 text-blue-300' 
-                    : 'bg-slate-800/50 border border-slate-700/50 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
-                }`}
+                className={[
+                  'w-full rounded-2xl border p-4 text-left transition-all',
+                  isCurrent
+                    ? 'border-blue-500/30 bg-blue-600/20 text-blue-300'
+                    : 'border-slate-700/50 bg-slate-800/50 text-slate-300 hover:border-slate-600 hover:bg-slate-800',
+                ].join(' ')}
               >
                 <div className="font-medium leading-relaxed">{chapter.title}</div>
-                <div className="text-xs mt-2 opacity-50">跳转至第 {chapter.index + 1} 句</div>
+                <div className="mt-2 text-xs opacity-60">{format(text.chaptersModal.jumpToLine, { line: chapter.index + 1 })}</div>
               </button>
             );
           })}
-          {chapters.length === 0 && (
-            <div className="text-center py-10 text-slate-500">
-              暂无章节信息
-            </div>
-          )}
+          {chapters.length === 0 && <div className="py-10 text-center text-slate-500">{text.chaptersModal.empty}</div>}
         </div>
       </div>
     </div>
   );
 }
+

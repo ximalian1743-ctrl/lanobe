@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { AppSettings, Entry, Chapter } from '../types';
 import { buildBuiltInBookProgressKey } from '../types/books';
+import { UiLanguage } from '../i18n/ui';
 
 const defaultSettings: AppSettings = {
   apiBase: '',
@@ -28,6 +29,7 @@ const defaultSettings: AppSettings = {
 };
 
 interface AppState {
+  uiLanguage: UiLanguage;
   entries: Entry[];
   currentIndex: number;
   isPlaying: boolean;
@@ -43,6 +45,7 @@ interface AppState {
   lastOpenedVolumes: Record<string, string>;
   lastOpenedBook: LastOpenedBook | null;
   
+  setUiLanguage: (uiLanguage: UiLanguage) => void;
   setEntries: (entries: Entry[]) => void;
   setCurrentIndex: (index: number) => void;
   setIsPlaying: (playing: boolean) => void;
@@ -86,6 +89,7 @@ interface SaveBuiltInBookProgressInput {
 }
 
 interface PersistedAppState {
+  uiLanguage?: UiLanguage;
   settings?: AppSettings;
   autoNext?: boolean;
   builtInBookProgress?: Record<string, BuiltInBookProgress>;
@@ -97,6 +101,7 @@ export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
       entries: [],
+      uiLanguage: 'zh-CN',
       currentIndex: 0,
       isPlaying: false,
       autoNext: true,
@@ -111,6 +116,7 @@ export const useAppStore = create<AppState>()(
       lastOpenedVolumes: {},
       lastOpenedBook: null,
 
+      setUiLanguage: (uiLanguage) => set({ uiLanguage }),
       setEntries: (entries) => set({ entries, currentIndex: 0, audioCache: {}, isFetching: {}, fetchErrors: {}, isPlaying: false, chapters: [] }),
       setCurrentIndex: (currentIndex) => set({ currentIndex }),
       setIsPlaying: (isPlaying) => set({ isPlaying }),
@@ -159,6 +165,7 @@ export const useAppStore = create<AppState>()(
       name: 'lanobe-storage',
       partialize: (state) => ({
         settings: state.settings,
+        uiLanguage: state.uiLanguage,
         autoNext: state.autoNext,
         builtInBookProgress: state.builtInBookProgress,
         lastOpenedVolumes: state.lastOpenedVolumes,
@@ -169,6 +176,7 @@ export const useAppStore = create<AppState>()(
 
         return {
           ...currentState,
+          uiLanguage: persisted.uiLanguage ?? currentState.uiLanguage,
           autoNext: persisted.autoNext ?? currentState.autoNext,
           builtInBookProgress: persisted.builtInBookProgress ?? currentState.builtInBookProgress,
           lastOpenedVolumes: persisted.lastOpenedVolumes ?? currentState.lastOpenedVolumes,

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { AppSettings, Entry, Chapter } from '../types';
+import { buildBuiltInBookProgressKey } from '../types/books';
 
 const defaultSettings: AppSettings = {
   apiBase: '',
@@ -38,6 +39,9 @@ interface AppState {
   locateTrigger: number;
   chapters: Chapter[];
   isGeneratingChapters: boolean;
+  builtInBookProgress: Record<string, BuiltInBookProgress>;
+  lastOpenedVolumes: Record<string, string>;
+  lastOpenedBook: LastOpenedBook | null;
   
   setEntries: (entries: Entry[]) => void;
   setCurrentIndex: (index: number) => void;
@@ -51,6 +55,42 @@ interface AppState {
   triggerLocate: () => void;
   setChapters: (chapters: Chapter[]) => void;
   setIsGeneratingChapters: (isGenerating: boolean) => void;
+  saveBuiltInBookProgress: (input: SaveBuiltInBookProgressInput) => void;
+}
+
+interface BuiltInBookProgress {
+  slug: string;
+  bookTitle: string;
+  volumeId: string;
+  volumeLabel: string;
+  currentIndex: number;
+  entryCount: number;
+  updatedAt: string;
+}
+
+interface LastOpenedBook {
+  slug: string;
+  bookTitle: string;
+  volumeId: string;
+  volumeLabel: string;
+  updatedAt: string;
+}
+
+interface SaveBuiltInBookProgressInput {
+  slug: string;
+  bookTitle: string;
+  volumeId: string;
+  volumeLabel: string;
+  currentIndex: number;
+  entryCount: number;
+}
+
+interface PersistedAppState {
+  settings?: AppSettings;
+  autoNext?: boolean;
+  builtInBookProgress?: Record<string, BuiltInBookProgress>;
+  lastOpenedVolumes?: Record<string, string>;
+  lastOpenedBook?: LastOpenedBook | null;
 }
 
 export const useAppStore = create<AppState>()(
@@ -67,6 +107,9 @@ export const useAppStore = create<AppState>()(
       locateTrigger: 0,
       chapters: [],
       isGeneratingChapters: false,
+      builtInBookProgress: {},
+      lastOpenedVolumes: {},
+      lastOpenedBook: null,
 
       setEntries: (entries) => set({ entries, currentIndex: 0, audioCache: {}, isFetching: {}, fetchErrors: {}, isPlaying: false, chapters: [] }),
       setCurrentIndex: (currentIndex) => set({ currentIndex }),
@@ -80,17 +123,59 @@ export const useAppStore = create<AppState>()(
       triggerLocate: () => set((state) => ({ locateTrigger: state.locateTrigger + 1 })),
       setChapters: (chapters) => set({ chapters }),
       setIsGeneratingChapters: (isGeneratingChapters) => set({ isGeneratingChapters }),
+      saveBuiltInBookProgress: ({ slug, bookTitle, volumeId, volumeLabel, currentIndex, entryCount }) =>
+        set((state) => {
+          const updatedAt = new Date().toISOString();
+          const progressKey = buildBuiltInBookProgressKey(slug, volumeId);
+
+          return {
+            builtInBookProgress: {
+              ...state.builtInBookProgress,
+              [progressKey]: {
+                slug,
+                bookTitle,
+                volumeId,
+                volumeLabel,
+                currentIndex: Math.max(0, currentIndex),
+                entryCount: Math.max(0, entryCount),
+                updatedAt,
+              },
+            },
+            lastOpenedVolumes: {
+              ...state.lastOpenedVolumes,
+              [slug]: volumeId,
+            },
+            lastOpenedBook: {
+              slug,
+              bookTitle,
+              volumeId,
+              volumeLabel,
+              updatedAt,
+            },
+          };
+        }),
     }),
     {
       name: 'lanobe-storage',
-      partialize: (state) => ({ settings: state.settings, autoNext: state.autoNext, chapters: state.chapters }),
-      merge: (persistedState: any, currentState) => {
+      partialize: (state) => ({
+        settings: state.settings,
+        autoNext: state.autoNext,
+        builtInBookProgress: state.builtInBookProgress,
+        lastOpenedVolumes: state.lastOpenedVolumes,
+        lastOpenedBook: state.lastOpenedBook,
+      }),
+      merge: (persistedState: unknown, currentState) => {
+        const persisted = (persistedState ?? {}) as PersistedAppState;
+
         return {
           ...currentState,
-          ...persistedState,
+          autoNext: persisted.autoNext ?? currentState.autoNext,
+          builtInBookProgress: persisted.builtInBookProgress ?? currentState.builtInBookProgress,
+          lastOpenedVolumes: persisted.lastOpenedVolumes ?? currentState.lastOpenedVolumes,
+          lastOpenedBook: persisted.lastOpenedBook ?? currentState.lastOpenedBook,
           settings: {
             ...currentState.settings,
-            ...(persistedState?.settings || {})
+            ...(persisted.settings || {})
           }
         };
       }

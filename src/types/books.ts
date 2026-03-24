@@ -26,3 +26,7 @@ export interface BuiltInBookMeta {
   defaultVolumeId: string;
   volumes: BuiltInVolume[];
 }
+
+export function buildBuiltInBookProgressKey(slug: string, volumeId: string) {
+  return `${slug}::${volumeId}`;
+}

@@ -2,6 +2,14 @@ Lanobe V1 Development Plan
 Date: 2026-03-24
 Project: ximalian.cc.cd / lanobe
 
+Current execution status (2026-03-24 evening):
+
+1. Stage 1 complete: route foundation landed
+2. Stage 2 complete: built-in bookshelf novel landed
+3. Stage 3 complete: built-in book opens inside the reused reader
+4. Stage 4 complete: local progress and last-opened volume now persist in browser storage
+5. Stage 5 pending: copy polish, encoding cleanup, and mobile/detail refinement
+
 ==================================================
 1. V1 Total Guideline
 ==================================================

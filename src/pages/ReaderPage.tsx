@@ -4,7 +4,8 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import { ReaderExperience } from '../features/reader/ReaderExperience';
 import { useLoadContent } from '../hooks/useLoadContent';
 import { fetchBookMeta, fetchBookText } from '../services/bookService';
-import { BuiltInBookMeta } from '../types/books';
+import { buildBuiltInBookProgressKey, BuiltInBookMeta } from '../types/books';
+import { useAppStore } from '../store/useAppStore';
 
 export function ReaderPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -12,8 +13,13 @@ export function ReaderPage() {
   const [meta, setMeta] = useState<BuiltInBookMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hydratedLoadKey, setHydratedLoadKey] = useState<string | null>(null);
   const lastLoadedKey = useRef<string | null>(null);
   const { loadContent } = useLoadContent();
+  const lastOpenedVolumeId = useAppStore((state) => (slug ? state.lastOpenedVolumes[slug] : undefined));
+  const currentIndex = useAppStore((state) => state.currentIndex);
+  const entryCount = useAppStore((state) => state.entries.length);
+  const saveBuiltInBookProgress = useAppStore((state) => state.saveBuiltInBookProgress);
 
   const volumeId = searchParams.get('volume');
 
@@ -55,8 +61,9 @@ export function ReaderPage() {
 
   const selectedVolume = useMemo(() => {
     if (!meta) return null;
-    return meta.volumes.find((volume) => volume.id === volumeId) ?? meta.volumes[0] ?? null;
-  }, [meta, volumeId]);
+    const preferredVolumeId = volumeId ?? lastOpenedVolumeId ?? meta.defaultVolumeId;
+    return meta.volumes.find((volume) => volume.id === preferredVolumeId) ?? meta.volumes[0] ?? null;
+  }, [lastOpenedVolumeId, meta, volumeId]);
 
   useEffect(() => {
     if (!meta || volumeId || !selectedVolume) return;
@@ -77,13 +84,26 @@ export function ReaderPage() {
       }
 
       try {
+        setHydratedLoadKey(null);
         setError(null);
         const text = await fetchBookText(selectedVolume.textPath);
         if (cancelled) {
           return;
         }
         await loadContent(text, { skipAi: true });
+        if (cancelled) {
+          return;
+        }
+
+        const state = useAppStore.getState();
+        const progressKey = buildBuiltInBookProgressKey(slug, selectedVolume.id);
+        const savedProgress = state.builtInBookProgress[progressKey];
+        const maxIndex = Math.max(0, state.entries.length - 1);
+        const restoredIndex = savedProgress ? Math.min(savedProgress.currentIndex, maxIndex) : 0;
+
+        state.setCurrentIndex(restoredIndex);
         lastLoadedKey.current = loadKey;
+        setHydratedLoadKey(loadKey);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Failed to load selected volume.');
@@ -97,6 +117,32 @@ export function ReaderPage() {
       cancelled = true;
     };
   }, [loadContent, selectedVolume, slug]);
+
+  useEffect(() => {
+    if (!slug || !meta || !selectedVolume || entryCount === 0) {
+      return;
+    }
+
+    const loadKey = `${slug}:${selectedVolume.id}`;
+    if (hydratedLoadKey !== loadKey) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      saveBuiltInBookProgress({
+        slug,
+        bookTitle: meta.title,
+        volumeId: selectedVolume.id,
+        volumeLabel: selectedVolume.label,
+        currentIndex,
+        entryCount,
+      });
+    }, 240);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [currentIndex, entryCount, hydratedLoadKey, meta, saveBuiltInBookProgress, selectedVolume, slug]);
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -155,6 +201,9 @@ export function ReaderPage() {
           <h1 className="text-lg md:text-2xl font-black tracking-tight text-stone-100">{meta.title}</h1>
           <p className="mt-1 text-xs uppercase tracking-[0.25em] text-stone-400">
             {meta.author} / {meta.illustrator}
+          </p>
+          <p className="mt-3 text-sm text-stone-300/80">
+            Local progress and listening preferences are saved in this browser. Reopening this volume will resume from line {currentIndex + 1}.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {meta.volumes.map((volume) => (

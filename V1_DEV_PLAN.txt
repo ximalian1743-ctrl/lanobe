@@ -1,0 +1,476 @@
+Lanobe V1 Development Plan
+Date: 2026-03-24
+Project: ximalian.cc.cd / lanobe
+
+==================================================
+1. V1 Total Guideline
+==================================================
+
+V1's mission is not to build the full final product in one step.
+V1's mission is to turn the current single-page reading tool into a usable website product shell.
+
+The first usable closed loop should be:
+
+Home navigation page
+-> enter bookshelf
+-> click one built-in novel
+-> enter reader
+-> continue reading from last local progress
+
+V1 core principle:
+
+Build the site structure first, not the full account system first.
+
+This means V1 should prioritize:
+
+1. Site information architecture
+2. Bookshelf and built-in book content
+3. Reader route and reusable reader page
+4. Local persistence for progress and preferences
+5. Stable deployment and acceptable public usability
+
+V1 should explicitly NOT prioritize:
+
+1. Username and password system
+2. Cloud sync
+3. User-generated uploads as a core flow
+4. Multi-user backend complexity
+5. Admin panel
+
+Reason:
+
+The current project already has a working reader core.
+The fastest path to a real product is to wrap that core with navigation, bookshelf, and persistent reading state.
+If login, user storage, password management, reset flow, and sync are added too early, development complexity will expand sharply and delay the first usable release.
+
+==================================================
+2. V1 Product Positioning
+==================================================
+
+Product definition for V1:
+
+Lanobe is a web-based Japanese novel reading and listening tool.
+Users enter from the main site, open the bookshelf, choose a built-in book, and read/listen inside the existing reader experience.
+
+V1 target users:
+
+1. Primary: the owner himself
+2. Secondary: a small number of invited users or friends
+3. Not yet for open large-scale public traffic
+
+V1 success standard:
+
+1. The site has a clear homepage and bookshelf structure
+2. At least one built-in novel can be opened directly without upload
+3. The reader remembers where the user last stopped on that book
+4. Basic reading preferences persist locally
+5. The flow is understandable to a first-time visitor
+
+==================================================
+3. V1 Scope
+==================================================
+
+In scope:
+
+1. Homepage navigation at /
+2. Novel entrance page under /lanobe
+3. Bookshelf page under /lanobe/bookshelf
+4. One built-in novel placed in the project and published with the site
+5. Reader route under /lanobe/book/:slug
+6. Local persistence of:
+   - current reading position
+   - playback preferences
+   - display preferences
+7. Reuse of current TTS and reader capability
+8. Basic mobile usability
+
+Out of scope:
+
+1. Username/password registration and login
+2. Cloud account system
+3. Server-side user profile storage
+4. Reading progress sync across devices
+5. User upload center
+6. Payment, subscription, or admin backend
+7. Search/recommendation/community features
+
+==================================================
+4. Recommended URL Structure
+==================================================
+
+Recommended path naming:
+
+1. /                      -> main navigation homepage
+2. /lanobe               -> product intro / entry page
+3. /lanobe/bookshelf     -> bookshelf
+4. /lanobe/book/:slug    -> reader page
+
+Notes:
+
+1. "bookshelf" is recommended instead of "shujia"
+2. Keep URL naming fully English for maintainability and future public use
+3. Use one canonical book slug per built-in novel
+
+Example:
+
+/lanobe/book/kumo-desu-ga
+
+==================================================
+5. Recommended User Flow
+==================================================
+
+User flow for V1:
+
+1. User opens ximalian.cc.cd
+2. User sees homepage modules and clicks the novel section
+3. User enters /lanobe or directly enters /lanobe/bookshelf
+4. User sees one built-in novel on the shelf
+5. User clicks the book card
+6. User enters /lanobe/book/:slug
+7. System loads built-in text and chapter data
+8. Reader opens at last saved local position
+9. User reads, listens, and changes preferences
+10. Progress and preferences are saved locally in browser storage
+
+==================================================
+6. Technical Strategy
+==================================================
+
+6.1 Frontend strategy
+
+Current state:
+
+The current frontend is a single reader page.
+It has no route layer yet.
+The reader logic is centered in:
+
+1. src/App.tsx
+2. src/store/useAppStore.ts
+3. src/hooks/useLoadContent.ts
+
+Recommended V1 refactor:
+
+1. Introduce routing with react-router-dom
+2. Split the current single App into:
+   - App shell / router
+   - homepage
+   - bookshelf page
+   - reader page
+3. Move the current reader UI into a dedicated reader feature module
+
+Suggested page structure:
+
+1. src/pages/HomePage.tsx
+2. src/pages/LanobeLandingPage.tsx
+3. src/pages/BookshelfPage.tsx
+4. src/pages/ReaderPage.tsx
+
+Suggested feature structure:
+
+1. src/features/reader/
+2. src/features/bookshelf/
+3. src/features/site-shell/
+
+6.2 Content loading strategy
+
+For V1 built-in books, do NOT rely on user upload as the primary entry.
+
+Recommended built-in content approach:
+
+1. Put built-in book files under public/books/
+2. Load them by fetch on the reader route
+3. Use pre-generated metadata instead of runtime AI generation for first load
+
+Recommended file structure:
+
+1. public/books/index.json
+2. public/books/<slug>/meta.json
+3. public/books/<slug>/book.txt
+4. public/books/<slug>/chapters.json
+5. optional: public/books/<slug>/cover.jpg
+
+Reason:
+
+1. Fast first load
+2. Stable deployment
+3. No dependency on AI for bookshelf books
+4. Better control over product quality
+
+6.3 Reader reuse strategy
+
+The current reader core should be reused, not rewritten from zero.
+
+Recommended changes:
+
+1. Preserve current entry parsing logic
+2. Preserve current TTS queue logic
+3. Preserve current settings modal concept
+4. Add book-aware state so state is saved by book slug
+
+Important adjustment:
+
+Current loadContent flow triggers chapter generation after parsing.
+For built-in novels, chapters should come from static prepared data first.
+
+Recommended reader modes:
+
+1. Built-in book mode
+   - load static book.txt
+   - load static chapters.json
+   - no AI chapter generation
+2. Optional upload mode
+   - keep current upload behavior for later compatibility
+
+==================================================
+7. Local Persistence Design
+==================================================
+
+V1 should store data in browser localStorage only.
+
+Recommended saved data:
+
+1. last opened book slug
+2. per-book currentIndex
+3. per-book current chapter
+4. per-book last read timestamp
+5. global playback settings
+6. global display settings
+
+Recommended storage model:
+
+1. site-level settings
+2. book-level progress map keyed by slug
+
+Example concept:
+
+lanobe-site-storage
+lanobe-book-progress
+
+Recommended progress structure:
+
+{
+  "kumo-desu-ga": {
+    "currentIndex": 182,
+    "chapterIndex": 6,
+    "updatedAt": "2026-03-24T14:00:00Z"
+  }
+}
+
+V1 should not store sensitive user credentials because V1 has no account system.
+
+==================================================
+8. Backend Strategy for V1
+==================================================
+
+V1 backend should remain lightweight.
+
+Current backend responsibilities:
+
+1. /health
+2. /api/tts-batch
+3. /api/ai-chat
+4. static file serving for SPA
+
+For V1, backend changes should be minimal:
+
+1. Keep current TTS APIs
+2. Keep current SPA fallback behavior
+3. Optionally add a static books manifest API only if needed
+
+Important:
+
+V1 should avoid introducing a database only for progress sync.
+That belongs to V2.
+
+==================================================
+9. V1 Information Architecture and UI Modules
+==================================================
+
+9.1 Homepage
+
+Purpose:
+
+1. Present ximalian.cc.cd as a navigation site
+2. Provide clear entry to the novel section
+
+Modules:
+
+1. Site hero area
+2. Product cards / navigation cards
+3. Entry card for Lanobe
+
+9.2 Lanobe landing page
+
+Purpose:
+
+1. Explain what Lanobe does
+2. Route the user to bookshelf
+
+Modules:
+
+1. Product intro
+2. Feature summary
+3. Enter bookshelf button
+
+9.3 Bookshelf page
+
+Purpose:
+
+1. Display built-in books
+2. Show progress summary
+
+Modules:
+
+1. Shelf header
+2. Book card
+3. Continue reading badge
+4. Last read info
+
+9.4 Reader page
+
+Purpose:
+
+1. Reuse the current reading and TTS experience
+2. Add awareness of which built-in book is being read
+
+Modules:
+
+1. Reader header with book info
+2. Existing entry list
+3. Existing controls
+4. Existing settings modal
+5. Existing chapters modal
+
+==================================================
+10. Recommended Development Stages
+==================================================
+
+Stage 1: Route foundation
+
+Goal:
+
+1. Introduce router
+2. Make /, /lanobe, /lanobe/bookshelf, /lanobe/book/:slug accessible
+
+Done definition:
+
+1. URL changes work directly on refresh
+2. Azure deployment still serves all routes correctly
+
+Stage 2: Bookshelf and built-in content
+
+Goal:
+
+1. Add static books manifest
+2. Add one built-in book
+3. Display the book in bookshelf page
+
+Done definition:
+
+1. User can open the built-in book without upload
+2. Book metadata is shown clearly
+
+Stage 3: Reader integration
+
+Goal:
+
+1. Connect built-in book route to current reader
+2. Load book text and chapter data from static assets
+
+Done definition:
+
+1. Reader opens correctly from a bookshelf click
+2. Existing playback and chapter navigation still work
+
+Stage 4: Local progress persistence
+
+Goal:
+
+1. Persist reading progress by book slug
+2. Resume from last position
+
+Done definition:
+
+1. Refreshing the page keeps progress
+2. Leaving and re-entering the book resumes at the correct place
+
+Stage 5: V1 polish
+
+Goal:
+
+1. Improve page copy
+2. Improve mobile layout
+3. Clean up obvious encoding / text issues
+4. Prepare production deployment verification
+
+Done definition:
+
+1. First-time user can understand the site flow
+2. Main pages are usable on mobile
+
+==================================================
+11. Recommended Acceptance Criteria
+==================================================
+
+V1 is considered complete when:
+
+1. ximalian.cc.cd has a homepage with a clear novel entry
+2. /lanobe/bookshelf exists and is navigable
+3. At least one built-in book is displayed on the shelf
+4. Clicking the book opens the reader route
+5. Reader can load without upload
+6. Reading position is restored after refresh
+7. Current playback and settings still work
+8. Production deployment still works through GitHub Actions -> Azure
+9. Public HTTPS access remains normal through Cloudflare
+
+==================================================
+12. Risks and Constraints
+==================================================
+
+1. Current UI has visible text encoding issues in several components
+   - This should be corrected during V1 polish
+
+2. Current AI chapter generation is not suitable as the default built-in-book loading path
+   - Static chapter data is safer for V1
+
+3. Public access to TTS endpoints can be abused
+   - Before wider public release, add rate limiting and request guardrails
+
+4. Book copyright must be checked before public distribution
+   - Personal use and public hosting are not the same legal situation
+
+5. If V1 adds login too early, project complexity rises sharply
+   - Delay password-based accounts to V2
+
+==================================================
+13. V2 Preview
+==================================================
+
+V2 can introduce:
+
+1. Login
+2. Cloud sync
+3. Multi-book library
+4. Server-side user profile storage
+5. Upload center
+
+Recommended V2 account approach:
+
+Prefer platform or third-party login first.
+Do not start with a custom username/password system unless there is a strong product reason.
+
+==================================================
+14. Final V1 Decision
+==================================================
+
+Approved V1 direction:
+
+1. Build a navigation site at ximalian.cc.cd
+2. Add Lanobe bookshelf under /lanobe/bookshelf
+3. Provide one built-in novel
+4. Enter the current reader from the bookshelf
+5. Save progress and preferences locally
+6. Postpone account/password/cloud sync to V2
+
+This is the most practical first product milestone.

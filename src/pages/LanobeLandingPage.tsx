@@ -45,10 +45,10 @@ export function LanobeLandingPage() {
               Go To Bookshelf
             </Link>
             <Link
-              to="/lanobe/book/stage1-preview"
+              to="/lanobe/book/makeine-too-many-heroines?volume=volume-01"
               className="rounded-full border border-stone-700 bg-stone-900/70 px-5 py-3 text-sm font-semibold text-stone-100 hover:border-stone-500"
             >
-              Open Reader Shell
+              Open Built-in Volume 01
             </Link>
           </div>
         </section>

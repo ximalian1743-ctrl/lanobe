@@ -1,0 +1,59 @@
+{
+  "slug": "makeine-too-many-heroines",
+  "title": "败犬女主太多了！",
+  "subtitle": "Makeine: Too Many Losing Heroines!",
+  "author": "雨森たきび",
+  "illustrator": "いみぎむる",
+  "description": "Integrated from the local source folder provided in the workspace. V1 exposes it as the first built-in bookshelf series and loads each volume directly from static text assets.",
+  "defaultVolumeId": "volume-01",
+  "volumes": [
+    {
+      "id": "volume-01",
+      "label": "第01册",
+      "title": "Volume 01",
+      "textPath": "/books/makeine-too-many-heroines/volumes/volume-01.txt"
+    },
+    {
+      "id": "volume-02",
+      "label": "第02册",
+      "title": "Volume 02",
+      "textPath": "/books/makeine-too-many-heroines/volumes/volume-02.txt"
+    },
+    {
+      "id": "volume-03",
+      "label": "第03册",
+      "title": "Volume 03",
+      "textPath": "/books/makeine-too-many-heroines/volumes/volume-03.txt"
+    },
+    {
+      "id": "volume-04",
+      "label": "第04册",
+      "title": "Volume 04",
+      "textPath": "/books/makeine-too-many-heroines/volumes/volume-04.txt"
+    },
+    {
+      "id": "volume-05",
+      "label": "第05册",
+      "title": "Volume 05",
+      "textPath": "/books/makeine-too-many-heroines/volumes/volume-05.txt"
+    },
+    {
+      "id": "volume-06",
+      "label": "第06册",
+      "title": "Volume 06",
+      "textPath": "/books/makeine-too-many-heroines/volumes/volume-06.txt"
+    },
+    {
+      "id": "volume-07",
+      "label": "第07册",
+      "title": "Volume 07",
+      "textPath": "/books/makeine-too-many-heroines/volumes/volume-07.txt"
+    },
+    {
+      "id": "volume-08",
+      "label": "第08册",
+      "title": "Volume 08",
+      "textPath": "/books/makeine-too-many-heroines/volumes/volume-08.txt"
+    }
+  ]
+}

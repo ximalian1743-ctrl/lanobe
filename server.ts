@@ -163,6 +163,11 @@ app.post('/api/ai-chat', async (req, res) => {
 });
 
 async function startServer() {
+  // Required for App Service managed certificate HTTP-token validation.
+  // Azure writes challenge files under .well-known/pki-validation in wwwroot.
+  const pkiValidationPath = path.join(process.cwd(), '.well-known', 'pki-validation');
+  app.use('/.well-known/pki-validation', express.static(pkiValidationPath));
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

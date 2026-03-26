@@ -93,8 +93,7 @@ test('configured AI button opens the explanation modal and renders the response'
               content: JSON.stringify({
                 overview: 'The speaker is softening the statement and relying on shared context.',
                 translation: 'A natural translation for the current line.',
-                contextNote: 'This line responds to the previous sentence and prepares the next one.',
-                structure: 'Main clause plus a soft explanatory tail.',
+                readingGuide: '負け（まけ）ヒロインが多すぎる。',
                 grammarPoints: [
                   {
                     title: 'Soft sentence ending',
@@ -104,11 +103,11 @@ test('configured AI button opens the explanation modal and renders the response'
                 wordBreakdown: [
                   {
                     term: '負け',
+                    reading: 'まけ',
                     meaning: 'loss / losing',
                     role: 'core noun',
                   },
                 ],
-                sentencePatterns: ['soft explanation', 'context-driven omission'],
                 teachingTip: 'Read this sentence as a response shaped by the conversation, not in isolation.',
               }),
             },
@@ -125,7 +124,7 @@ test('configured AI button opens the explanation modal and renders the response'
   await page.getByTestId('ai-explain-button').click();
 
   await expect(page.getByTestId('ai-explain-modal')).toBeVisible();
-  await expect(page.getByText('Generating the full explanation')).toBeVisible();
+  await expect(page.getByText('Generating a compact explanation')).toBeVisible();
   await expect(page.getByText('The speaker is softening the statement and relying on shared context.')).toBeVisible();
   await expect(page.getByText('Read this sentence as a response shaped by the conversation, not in isolation.')).toBeVisible();
 });

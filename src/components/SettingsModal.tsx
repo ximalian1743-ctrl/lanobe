@@ -42,6 +42,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<TabId>('quick');
   const [search, setSearch] = useState('');
   const [jumpPercent, setJumpPercent] = useState(0);
+  const panelClass = 'rounded-[28px] border border-slate-800/70 bg-[linear-gradient(180deg,_rgba(15,23,42,0.9),_rgba(2,6,23,0.84))] p-5 shadow-[0_18px_45px_rgba(2,6,23,0.18)] transition-transform duration-200 hover:-translate-y-0.5';
 
   const tabs: Array<{ id: TabId; label: string; icon: typeof Settings2 }> = [
     { id: 'quick', label: text.settings.tabQuick, icon: Settings2 },
@@ -107,9 +108,9 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/82 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/84 p-0 backdrop-blur-sm md:items-center md:p-4">
+      <div className="flex h-[88dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-[32px] border border-slate-800 bg-[linear-gradient(180deg,_rgba(15,23,42,0.98),_rgba(2,6,23,0.95))] shadow-2xl md:h-auto md:max-h-[90vh] md:rounded-[34px]">
+        <div className="flex items-center justify-between border-b border-slate-800 bg-[radial-gradient(circle_at_top_left,_rgba(251,146,60,0.15),_rgba(15,23,42,0.25)_38%,_transparent_70%)] px-5 py-4">
           <div>
             <h2 className="text-xl font-bold text-slate-100">{text.settings.title}</h2>
             <p className="mt-1 text-sm text-slate-400">{text.settings.quickSection}</p>
@@ -119,7 +120,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="border-b border-slate-800 px-4 py-3">
+        <div className="border-b border-slate-800/80 bg-slate-950/55 px-4 py-3">
           <div className="flex flex-wrap gap-2">
             {tabs.map((item) => {
               const Icon = item.icon;
@@ -130,8 +131,10 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                   type="button"
                   onClick={() => setTab(item.id)}
                   className={[
-                    'inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition-colors',
-                    active ? 'bg-orange-400 text-stone-950' : 'border border-slate-700 bg-slate-950/70 text-slate-200 hover:border-slate-500',
+                    'inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition-all duration-200',
+                    active
+                      ? 'bg-orange-400 text-stone-950 shadow-lg shadow-orange-500/20'
+                      : 'border border-slate-700 bg-slate-950/70 text-slate-200 hover:-translate-y-0.5 hover:border-slate-500',
                   ].join(' ')}
                 >
                   <Icon size={14} />
@@ -145,7 +148,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         <div className="flex-1 overflow-y-auto p-5">
           {tab === 'quick' && (
             <div className="grid gap-5 lg:grid-cols-[1.4fr_0.6fr]">
-              <section className="rounded-3xl border border-slate-800/60 bg-slate-950/50 p-5">
+              <section className={panelClass}>
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-blue-400">{text.settings.quickSearchTitle}</h3>
                   <label className="group flex items-center gap-3 rounded-full border border-slate-800/60 bg-slate-900/70 px-3 py-2 text-sm text-slate-300">
@@ -200,7 +203,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                 </button>
               </section>
 
-              <section className="rounded-3xl border border-slate-800/60 bg-slate-950/50 p-5">
+              <section className={panelClass}>
                 <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-blue-400">{text.common.language}</h3>
                 <div className="mt-4">
                   <LanguageSwitcher />
@@ -214,7 +217,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
           {tab === 'audio' && (
             <div className="space-y-5">
-              <section className="rounded-3xl border border-slate-800/60 bg-slate-950/50 p-5">
+              <section className={panelClass}>
                 <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-blue-400">{text.settings.sequencePresetsTitle}</h3>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {sequencePresets.map((preset) => (
@@ -246,7 +249,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                 </div>
               </section>
 
-              <section className="rounded-3xl border border-slate-800/60 bg-slate-950/50 p-5">
+              <section className={panelClass}>
                 <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-blue-400">{text.settings.pausePresetsTitle}</h3>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {pausePresets.map((preset) => (
@@ -264,7 +267,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               </section>
 
               <section className="grid gap-5 md:grid-cols-2">
-                <div className="rounded-3xl border border-slate-800/60 bg-slate-950/50 p-5">
+                <div className={panelClass}>
                   <label className="space-y-2">
                     <span className="text-sm text-slate-300">{text.settings.japaneseVoice}</span>
                     <select value={settings.jpVoice} onChange={(e) => updateAndRecache({ jpVoice: e.target.value })} className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-200">
@@ -275,7 +278,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                   </label>
                   <div className="mt-4"><RateControl label={text.settings.japaneseRate} value={settings.jpRate} onChange={(value) => updateAndRecache({ jpRate: value })} /></div>
                 </div>
-                <div className="rounded-3xl border border-slate-800/60 bg-slate-950/50 p-5">
+                <div className={panelClass}>
                   <label className="space-y-2">
                     <span className="text-sm text-slate-300">{text.settings.chineseVoice}</span>
                     <select value={settings.chVoice} onChange={(e) => updateAndRecache({ chVoice: e.target.value })} className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-200">
@@ -292,7 +295,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
           {tab === 'display' && (
             <div className="space-y-5">
-              <section className="rounded-3xl border border-slate-800/60 bg-slate-950/50 p-5">
+              <section className={panelClass}>
                 <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-blue-400">{text.settings.displaySection}</h3>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   {displayOptions.map((option) => (
@@ -303,7 +306,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                   ))}
                 </div>
               </section>
-              <section className="rounded-3xl border border-slate-800/60 bg-slate-950/50 p-5">
+              <section className={panelClass}>
                 <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-blue-400">{text.settings.readerDensitySection}</h3>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {[
@@ -321,7 +324,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
           {tab === 'advanced' && (
             <div className="space-y-5">
-              <section className="rounded-3xl border border-slate-800/60 bg-slate-950/50 p-5">
+              <section className={panelClass}>
                 <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-blue-400">{text.settings.aiSection}</h3>
                 <div className="mt-4 space-y-3">
                   <input type="text" value={settings.aiApiBase || ''} onChange={(e) => updateSettings({ aiApiBase: e.target.value })} placeholder={text.settings.apiBaseUrl} className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-slate-200" />
@@ -332,7 +335,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                   {text.settings.aiExplainHint}
                 </p>
               </section>
-              <section className="rounded-3xl border border-slate-800/60 bg-slate-950/50 p-5">
+              <section className={panelClass}>
                 <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-blue-400">{text.settings.performanceSection}</h3>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <input type="number" value={settings.cacheAheadEntries} onChange={(e) => updateSettings({ cacheAheadEntries: Number.parseInt(e.target.value, 10) || 0 })} placeholder={text.settings.cacheAheadEntries} className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-slate-200" />

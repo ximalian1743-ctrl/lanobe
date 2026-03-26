@@ -4,16 +4,18 @@ import { Entry } from '../types';
 export interface EntryExplanation {
   overview: string;
   translation: string;
-  contextNote: string;
-  structure: string;
+  readingGuide: string;
   grammarPoints: Array<{ title: string; explanation: string }>;
-  wordBreakdown: Array<{ term: string; meaning: string; role: string }>;
-  sentencePatterns: string[];
+  wordBreakdown: Array<{ term: string; reading: string; meaning: string; role: string }>;
   teachingTip: string;
 }
 
 function cleanJapaneseText(text: string) {
   return text.replace(/\[[^\]]+\]/g, '').trim();
+}
+
+function formatReadingGuide(text: string) {
+  return text.replace(/\[([^\]]+)\]/g, '（$1）').trim();
 }
 
 function getAiProxyUrl(backendApiBase: string = '') {
@@ -41,12 +43,21 @@ function getOutputLanguageName(language: UiLanguage) {
   return 'Simplified Chinese';
 }
 
+function getReasoningEffort(model: string) {
+  const normalized = model.toLowerCase();
+  if (normalized.includes('gpt-5') || normalized.startsWith('o1') || normalized.startsWith('o3') || normalized.startsWith('o4')) {
+    return 'low';
+  }
+  return undefined;
+}
+
 function buildFallbackWords(entry: Entry) {
   return entry.words
     .filter((word) => word[0] || word[1])
-    .slice(0, 12)
+    .slice(0, 5)
     .map((word) => ({
       term: word[0] || word[1],
+      reading: '',
       meaning: word[1] || word[0],
       role: '',
     }));
@@ -88,9 +99,9 @@ export async function generateChapters(
   }
 
   if (!safeApiKey) {
-    return excerpts.map((e, idx) => ({
-      title: `Part ${idx + 1}`,
-      index: e.index,
+    return excerpts.map((excerpt, index) => ({
+      title: `Part ${index + 1}`,
+      index: excerpt.index,
     }));
   }
 
@@ -108,7 +119,7 @@ Return one JSON object only, shaped exactly like:
 {"titles":["title 1","title 2"]}
 
 Segments:
-${batch.map((e, idx) => `Segment ${idx + 1}:\n${e.text}`).join('\n\n')}`;
+${batch.map((excerpt, index) => `Segment ${index + 1}:\n${excerpt.text}`).join('\n\n')}`;
 
     try {
       const response = await fetch(proxyUrl, {
@@ -140,22 +151,24 @@ ${batch.map((e, idx) => `Segment ${idx + 1}:\n${e.text}`).join('\n\n')}`;
       const content = data.choices?.[0]?.message?.content || '';
       const parsed = parseJsonContent(content);
 
-      if (parsed.titles && Array.isArray(parsed.titles)) {
-        const batchTitles = parsed.titles.map((title: string, idx: number) => ({
-          title,
-          index: batch[idx]?.index || 0,
-        }));
-        allChapters.push(...batchTitles);
+      if (Array.isArray(parsed.titles)) {
+        allChapters.push(
+          ...parsed.titles.map((title: string, index: number) => ({
+            title,
+            index: batch[index]?.index || 0,
+          })),
+        );
       } else {
         throw new Error('Invalid response format');
       }
     } catch (error) {
       console.error(`Failed to generate chapters for batch ${i / batchSize + 1}:`, error);
-      const fallbackTitles = batch.map((e, idx) => ({
-        title: `Part ${i + idx + 1}`,
-        index: e.index,
-      }));
-      allChapters.push(...fallbackTitles);
+      allChapters.push(
+        ...batch.map((excerpt, index) => ({
+          title: `Part ${i + index + 1}`,
+          index: excerpt.index,
+        })),
+      );
     }
   }
 
@@ -172,8 +185,6 @@ export async function explainEntryWithAi({
   model,
   backendApiBase = '',
   uiLanguage,
-  bookTitle,
-  volumeLabel,
 }: {
   entry: Entry;
   previousEntry?: Entry;
@@ -184,8 +195,6 @@ export async function explainEntryWithAi({
   model: string;
   backendApiBase?: string;
   uiLanguage: UiLanguage;
-  bookTitle?: string;
-  volumeLabel?: string;
 }): Promise<EntryExplanation> {
   const safeApiBase = apiBase || 'https://sub.jlypx.de/v1';
   const safeApiKey = apiKey.trim();
@@ -200,26 +209,30 @@ export async function explainEntryWithAi({
   const currentJp = cleanJapaneseText(entry.jp);
   const previousJp = previousEntry ? cleanJapaneseText(previousEntry.jp) : '';
   const nextJp = nextEntry ? cleanJapaneseText(nextEntry.jp) : '';
+  const reasoningEffort = getReasoningEffort(safeModel);
 
-  const prompt = `You are a world-class Japanese teacher helping a learner study one sentence inside its story context.
+  const prompt = `You are a patient Japanese teacher for beginners.
 Respond entirely in ${targetLanguage}.
-Return one JSON object only. Do not use markdown fences.
+Do not discuss plot unless it is absolutely needed for grammar or omitted subjects.
+Keep the total response short enough to fit in a single phone screen.
+Whenever you mention Japanese words with kanji, annotate them as 漢字（かな）.
+Return JSON only.
 
 JSON shape:
 {
-  "overview": "short overall explanation",
-  "translation": "natural translation of the current sentence",
-  "contextNote": "how the previous/current/next lines connect",
-  "structure": "sentence structure and clause breakdown",
+  "overview": "1-2 short sentences that explain the core meaning",
+  "translation": "one natural translation",
+  "readingGuide": "rewrite the current sentence with kana support for key kanji",
   "grammarPoints": [{"title":"", "explanation":""}],
-  "wordBreakdown": [{"term":"", "meaning":"", "role":""}],
-  "sentencePatterns": ["pattern 1", "pattern 2"],
-  "teachingTip": "best teaching explanation for this learner"
+  "wordBreakdown": [{"term":"", "reading":"", "meaning":"", "role":""}],
+  "teachingTip": "one compact teaching note"
 }
 
-Book: ${bookTitle || 'Unknown'}
-Volume: ${volumeLabel || 'Unknown'}
-Line: ${lineNumber}
+Hard limits:
+- grammarPoints: at most 3
+- wordBreakdown: at most 5
+- each explanation: concise
+- no extra keys
 
 Previous line:
 JP: ${previousJp || '(none)'}
@@ -235,30 +248,38 @@ Next line:
 JP: ${nextJp || '(none)'}
 ZH: ${nextEntry?.ch || '(none)'}
 
-Requirements:
-- Focus on grammar, clause structure, vocabulary, nuance, and why the sentence is written this way.
-- Use the story context when explaining tone or omitted subjects.
-- If useful, explain contraction, omitted particles, or implied meaning.
-- Keep the explanation dense and practical for learning, not generic praise.
-- Keep wordBreakdown to the most useful 5-10 items.`;
+Focus order:
+1. natural meaning
+2. beginner-friendly reading support
+3. grammar and sentence structure
+4. useful vocabulary only`;
+
+  const requestBody: Record<string, unknown> = {
+    apiBase: safeApiBase,
+    apiKey: safeApiKey,
+    model: safeModel,
+    messages: [
+      {
+        role: 'system',
+        content: 'You are an expert Japanese teacher. Return compact JSON only.',
+      },
+      { role: 'user', content: prompt },
+    ],
+    response_format: { type: 'json_object' },
+    temperature: 0.2,
+    max_completion_tokens: 650,
+  };
+
+  if (reasoningEffort) {
+    requestBody.reasoning_effort = reasoningEffort;
+  }
 
   const response = await fetch(proxyUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      apiBase: safeApiBase,
-      apiKey: safeApiKey,
-      model: safeModel,
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert Japanese teacher and linguistic analyst. Return JSON only.',
-        },
-        { role: 'user', content: prompt },
-      ],
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {
@@ -273,11 +294,12 @@ Requirements:
   return {
     overview: parsed.overview || '',
     translation: parsed.translation || entry.ch || '',
-    contextNote: parsed.contextNote || '',
-    structure: parsed.structure || '',
-    grammarPoints: Array.isArray(parsed.grammarPoints) ? parsed.grammarPoints : [],
-    wordBreakdown: Array.isArray(parsed.wordBreakdown) && parsed.wordBreakdown.length ? parsed.wordBreakdown : buildFallbackWords(entry),
-    sentencePatterns: Array.isArray(parsed.sentencePatterns) ? parsed.sentencePatterns : [],
+    readingGuide: parsed.readingGuide || formatReadingGuide(entry.jp || currentJp),
+    grammarPoints: Array.isArray(parsed.grammarPoints) ? parsed.grammarPoints.slice(0, 3) : [],
+    wordBreakdown:
+      Array.isArray(parsed.wordBreakdown) && parsed.wordBreakdown.length
+        ? parsed.wordBreakdown.slice(0, 5)
+        : buildFallbackWords(entry),
     teachingTip: parsed.teachingTip || '',
   };
 }

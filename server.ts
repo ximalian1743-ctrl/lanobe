@@ -124,7 +124,13 @@ app.post('/api/tts-batch', async (req, res) => {
 
 // AI Proxy endpoint to bypass CORS issues
 app.post('/api/ai-chat', async (req, res) => {
-  const { apiBase, apiKey, model, messages, response_format } = req.body;
+  const {
+    apiBase,
+    apiKey,
+    model,
+    messages,
+    ...passthrough
+  } = req.body;
   
   if (!apiBase || !apiKey || !model || !messages) {
     return res.status(400).json({ error: 'Missing required AI parameters' });
@@ -145,7 +151,7 @@ app.post('/api/ai-chat', async (req, res) => {
       body: JSON.stringify({
         model,
         messages,
-        response_format
+        ...passthrough,
       }),
     });
 

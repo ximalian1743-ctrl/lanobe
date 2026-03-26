@@ -93,6 +93,10 @@ function updateMediaSessionPlaybackState(state: MediaSessionPlaybackState) {
   }
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function generateSilentWav(durationMs: number): string {
   const sampleRate = 8000;
   const numChannels = 1;
@@ -104,9 +108,9 @@ function generateSilentWav(durationMs: number): string {
   const buffer = new ArrayBuffer(44 + subchunk2Size);
   const view = new DataView(buffer);
 
-  const writeString = (offset: number, string: string) => {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
+  const writeString = (offset: number, value: string) => {
+    for (let i = 0; i < value.length; i++) {
+      view.setUint8(offset + i, value.charCodeAt(i));
     }
   };
 
@@ -134,7 +138,7 @@ function generateSilentWav(durationMs: number): string {
 
 function generatePlaylist(entry: Entry, settings: AppSettings): PlaylistItem[] {
   const playlist: PlaylistItem[] = [];
-  
+
   const addPause = (ms: number) => {
     if (ms > 0) playlist.push({ type: 'pause', durationMs: ms });
   };
@@ -153,28 +157,28 @@ function generatePlaylist(entry: Entry, settings: AppSettings): PlaylistItem[] {
       addTts(entry.ch, settings.chVoice, settings.chRate);
       added = true;
     } else if (token === 'word_jp') {
-      entry.words.forEach((w, i) => {
-        const jpText = w[0].replace(/[（(][^)）]+[)）]/g, '').replace(/\[[^\]]+\]/g, '').trim();
+      entry.words.forEach((word, index) => {
+        const jpText = word[0].replace(/[锛?][^)锛塢+[)锛塢/g, '').replace(/\[[^\]]+\]/g, '').trim();
         if (jpText) {
-          if (i > 0) addPause(settings.pauseBetweenWordsMs);
+          if (index > 0) addPause(settings.pauseBetweenWordsMs);
           addTts(jpText, settings.jpVoice, settings.jpRate);
           added = true;
         }
       });
     } else if (token === 'word_ch') {
-      entry.words.forEach((w, i) => {
-        if (w[1]) {
-          if (i > 0) addPause(settings.pauseBetweenWordsMs);
-          addTts(w[1], settings.chVoice, settings.chRate);
+      entry.words.forEach((word, index) => {
+        if (word[1]) {
+          if (index > 0) addPause(settings.pauseBetweenWordsMs);
+          addTts(word[1], settings.chVoice, settings.chRate);
           added = true;
         }
       });
     } else if (token === 'word_pair') {
-      entry.words.forEach((w, i) => {
-        const jpText = w[0].replace(/[（(][^)）]+[)）]/g, '').replace(/\[[^\]]+\]/g, '').trim();
-        const chText = w[1].trim();
+      entry.words.forEach((word, index) => {
+        const jpText = word[0].replace(/[锛?][^)锛塢+[)锛塢/g, '').replace(/\[[^\]]+\]/g, '').trim();
+        const chText = word[1].trim();
         if (jpText || chText) {
-          if (i > 0) addPause(settings.pauseBetweenWordsMs);
+          if (index > 0) addPause(settings.pauseBetweenWordsMs);
           if (jpText) addTts(jpText, settings.jpVoice, settings.jpRate);
           if (jpText && chText) addPause(settings.pauseWordItemMs);
           if (chText) addTts(chText, settings.chVoice, settings.chRate);
@@ -185,14 +189,14 @@ function generatePlaylist(entry: Entry, settings: AppSettings): PlaylistItem[] {
     return added;
   };
 
-  for (let r = 0; r < settings.entryRepeat; r++) {
-    settings.sequence.forEach((token, i) => {
+  for (let repeat = 0; repeat < settings.entryRepeat; repeat++) {
+    settings.sequence.forEach((token, index) => {
       const added = buildToken(token);
-      if (added && i < settings.sequence.length - 1) {
+      if (added && index < settings.sequence.length - 1) {
         addPause(settings.pauseSegmentMs);
       }
     });
-    if (r < settings.entryRepeat - 1) {
+    if (repeat < settings.entryRepeat - 1) {
       addPause(settings.pauseSegmentMs);
     }
   }
@@ -210,21 +214,204 @@ export function useAudioQueue() {
     entries,
     currentIndex,
     isPlaying,
-    autoNext,
     settings,
     audioCache,
     isFetching,
     fetchErrors,
-    setAudioCache,
-    setIsFetching,
-    setFetchError,
-    setCurrentIndex,
-    setIsPlaying,
   } = useAppStore();
 
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const playCanceledRef = useRef(false);
   const playlistIndexRef = useRef(0);
+  const internalAdvanceRef = useRef(false);
+
+  const fetchEntry = async (index: number) => {
+    const state = useAppStore.getState();
+    const currentEntries = state.entries;
+    const currentSettings = state.settings;
+
+    if (state.audioCache[index] || state.isFetching[index] || state.fetchErrors[index] || !currentEntries[index]) return;
+
+    state.setIsFetching(index, true);
+    try {
+      const playlist = generatePlaylist(currentEntries[index], currentSettings);
+      const ttsRequests: Array<{ text?: string; voice?: string; rate?: number }> = [];
+      const seen = new Set<string>();
+
+      for (const item of playlist) {
+        if (item.type === 'tts') {
+          const key = `${item.text}|${item.voice}|${item.rate}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            ttsRequests.push({ text: item.text, voice: item.voice, rate: item.rate });
+          }
+        }
+      }
+
+      if (ttsRequests.length > 0) {
+        const apiBase = currentSettings.apiBase === 'https://api.ximalian.cc.cd' ? '' : currentSettings.apiBase;
+        const MAX_RETRIES = 3;
+        let attempt = 0;
+        let success = false;
+        let lastError: any = null;
+
+        while (attempt < MAX_RETRIES && !success) {
+          try {
+            const res = await fetch(`${apiBase}/api/tts-batch`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ requests: ttsRequests }),
+            });
+
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              throw new Error(`Failed to fetch audio: ${errData.error || res.statusText}`);
+            }
+
+            const { results } = await res.json();
+            const urlMap = new Map<string, string>();
+
+            for (const result of results) {
+              const key = `${result.text}|${result.voice}|${result.rate}`;
+              urlMap.set(key, `data:audio/mp3;base64,${result.audioBase64}`);
+            }
+
+            for (const item of playlist) {
+              if (item.type === 'tts') {
+                const key = `${item.text}|${item.voice}|${item.rate}`;
+                item.audioUrl = urlMap.get(key);
+              }
+            }
+
+            success = true;
+          } catch (error: any) {
+            lastError = error;
+            attempt++;
+            if (attempt < MAX_RETRIES) {
+              console.warn(`Retry ${attempt}/${MAX_RETRIES} for entry ${index} after error:`, error);
+              await sleep(1000 * attempt);
+            }
+          }
+        }
+
+        if (!success) {
+          throw lastError || new Error('Failed to fetch audio after multiple attempts');
+        }
+      }
+
+      state.setAudioCache(index, playlist as any);
+    } catch (error: any) {
+      console.error(`Failed to fetch audio for entry ${index}`, error);
+      state.setFetchError(index, error.message || 'Failed to fetch audio');
+    } finally {
+      state.setIsFetching(index, false);
+    }
+  };
+
+  const waitForPlaylist = async (index: number) => {
+    const timeoutAt = Date.now() + 20000;
+
+    while (Date.now() < timeoutAt) {
+      const state = useAppStore.getState();
+      const playlist = state.audioCache[index] as unknown as PlaylistItem[] | undefined;
+      const error = state.fetchErrors[index];
+
+      if (playlist !== undefined) {
+        return { playlist };
+      }
+
+      if (error) {
+        return { error };
+      }
+
+      if (!state.isFetching[index] && state.entries[index]) {
+        void fetchEntry(index);
+      }
+
+      await sleep(120);
+    }
+
+    return { error: 'Timed out while preparing audio' };
+  };
+
+  const playAudioUrl = async (
+    audioUrl: string,
+    canceledRef: { current: boolean },
+  ) => {
+    const audio = ensurePersistentAudioElement(activeAudioRef);
+    if (!audio) return false;
+
+    hintPlaybackAudioSession();
+    audio.src = audioUrl;
+
+    return new Promise<boolean>((resolve) => {
+      let resolved = false;
+      let hiddenResumeAttempts = 0;
+
+      const finish = (completed: boolean) => {
+        if (resolved) return;
+        resolved = true;
+        resolve(completed);
+      };
+
+      audio.onplay = () => {
+        updateMediaSessionPlaybackState('playing');
+      };
+
+      audio.onended = () => finish(true);
+      audio.onerror = () => {
+        console.error('Audio playback error');
+        updateMediaSessionPlaybackState('paused');
+        finish(true);
+      };
+      audio.onpause = () => {
+        if (audio.ended || (audio.duration && audio.duration - audio.currentTime < 0.1)) {
+          return;
+        }
+
+        updateMediaSessionPlaybackState('paused');
+
+        if (playCanceledRef.current || canceledRef.current || !useAppStore.getState().isPlaying) {
+          finish(false);
+          return;
+        }
+
+        if (document.hidden) {
+          hiddenResumeAttempts += 1;
+          if (hiddenResumeAttempts > 3) {
+            useAppStore.getState().setIsPlaying(false);
+            finish(false);
+            return;
+          }
+
+          audio.play().then(() => {
+            updateMediaSessionPlaybackState('playing');
+          }).catch((error) => {
+            console.warn('Failed to resume hidden audio playback', error);
+            useAppStore.getState().setIsPlaying(false);
+            finish(false);
+          });
+          return;
+        }
+
+        useAppStore.getState().setIsPlaying(false);
+        finish(false);
+      };
+
+      audio.play().catch((error) => {
+        console.error('Audio play error:', error);
+        updateMediaSessionPlaybackState('paused');
+        if (error.name === 'NotAllowedError') {
+          if (!playCanceledRef.current && !canceledRef.current) {
+            useAppStore.getState().setIsPlaying(false);
+          }
+          finish(false);
+          return;
+        }
+        finish(true);
+      });
+    });
+  };
 
   useEffect(() => {
     const audio = ensurePersistentAudioElement(activeAudioRef);
@@ -298,108 +485,23 @@ export function useAudioQueue() {
     };
   }, []);
 
-  // Reset playlist index when currentIndex or settings change
   useEffect(() => {
     playlistIndexRef.current = 0;
   }, [currentIndex, settings]);
 
-  // Pre-fetch logic
   useEffect(() => {
     if (entries.length === 0) return;
 
-    const fetchEntry = async (index: number) => {
-      if (audioCache[index] || isFetching[index] || fetchErrors[index] || !entries[index]) return;
-
-      setIsFetching(index, true);
-      try {
-        const entry = entries[index];
-        const playlist = generatePlaylist(entry, settings);
-        
-        const ttsRequests: any[] = [];
-        const seen = new Set();
-        for (const item of playlist) {
-          if (item.type === 'tts') {
-            const key = `${item.text}|${item.voice}|${item.rate}`;
-            if (!seen.has(key)) {
-              seen.add(key);
-              ttsRequests.push({ text: item.text, voice: item.voice, rate: item.rate });
-            }
-          }
-        }
-
-        if (ttsRequests.length > 0) {
-          const apiBase = settings.apiBase === 'https://api.ximalian.cc.cd' ? '' : settings.apiBase;
-          const MAX_RETRIES = 3;
-          let attempt = 0;
-          let success = false;
-          let lastError: any = null;
-
-          while (attempt < MAX_RETRIES && !success) {
-            try {
-              const res = await fetch(`${apiBase}/api/tts-batch`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ requests: ttsRequests })
-              });
-
-              if (!res.ok) {
-                const errData = await res.json().catch(() => ({}));
-                throw new Error(`Failed to fetch audio: ${errData.error || res.statusText}`);
-              }
-
-              const { results } = await res.json();
-              const urlMap = new Map();
-              for (const r of results) {
-                const key = `${r.text}|${r.voice}|${r.rate}`;
-                urlMap.set(key, `data:audio/mp3;base64,${r.audioBase64}`);
-              }
-
-              for (const item of playlist) {
-                if (item.type === 'tts') {
-                  const key = `${item.text}|${item.voice}|${item.rate}`;
-                  item.audioUrl = urlMap.get(key);
-                }
-              }
-              
-              success = true;
-            } catch (err: any) {
-              lastError = err;
-              attempt++;
-              if (attempt < MAX_RETRIES) {
-                console.warn(`Retry ${attempt}/${MAX_RETRIES} for entry ${index} after error:`, err);
-                await new Promise(r => setTimeout(r, 1000 * attempt)); // Exponential backoff: 1s, 2s
-              }
-            }
-          }
-
-          if (!success) {
-            throw lastError || new Error('Failed to fetch audio after multiple attempts');
-          }
-        }
-
-        setAudioCache(index, playlist as any);
-      } catch (err: any) {
-        console.error(`Failed to fetch audio for entry ${index}`, err);
-        setFetchError(index, err.message || 'Failed to fetch audio');
-      } finally {
-        setIsFetching(index, false);
-      }
-    };
-
     let activeFetches = 0;
-    for (let i = currentIndex; i <= currentIndex + settings.cacheAheadEntries; i++) {
-      if (i < entries.length && !audioCache[i] && !isFetching[i] && !fetchErrors[i]) {
+    for (let index = currentIndex; index <= currentIndex + settings.cacheAheadEntries; index++) {
+      if (index < entries.length && !audioCache[index] && !isFetching[index] && !fetchErrors[index]) {
         if (activeFetches < settings.entryConcurrency) {
-          fetchEntry(i);
+          void fetchEntry(index);
           activeFetches++;
         }
       }
     }
-  }, [currentIndex, entries, settings, audioCache, isFetching, fetchErrors]);
-
-  // Playback logic
-  const currentPlaylist = audioCache[currentIndex] as unknown as PlaylistItem[] | undefined;
-  const currentFetchError = fetchErrors[currentIndex];
+  }, [audioCache, currentIndex, entries, fetchErrors, isFetching, settings]);
 
   useEffect(() => {
     if (!isPlaying) {
@@ -411,184 +513,109 @@ export function useAudioQueue() {
       return;
     }
 
-    // Auto-skip on fetch error
-    if (isPlaying && currentFetchError) {
-      const state = useAppStore.getState();
-      if (state.autoNext) {
-        const nextIndex = currentIndex + 1;
-        if (nextIndex < state.entries.length) {
-          const pauseAudio = ensurePersistentAudioElement(activeAudioRef);
-          if (!pauseAudio) {
-            state.setCurrentIndex(nextIndex);
-            return;
-          }
-          hintPlaybackAudioSession();
-          pauseAudio.src = generateSilentWav(state.settings.pauseBetweenEntriesMs);
-          pauseAudio.onended = () => {
-            if (!playCanceledRef.current) {
-              state.setCurrentIndex(nextIndex);
-            }
-          };
-          pauseAudio.onerror = () => {
-            if (!playCanceledRef.current) {
-              state.setCurrentIndex(nextIndex);
-            }
-          };
-          pauseAudio.play().catch(() => {
-            if (!playCanceledRef.current) {
-              state.setCurrentIndex(nextIndex);
-            }
-          });
-        } else {
-          state.setIsPlaying(false);
-        }
-      } else {
-        state.setIsPlaying(false);
-      }
+    if (internalAdvanceRef.current) {
+      internalAdvanceRef.current = false;
       return;
     }
 
     playCanceledRef.current = false;
+    const canceledRef = { current: false };
 
-    if (isPlaying && currentPlaylist) {
-      let canceled = false;
-      
-      const playSequence = async () => {
-        hintPlaybackAudioSession();
+    const playSession = async () => {
+      let entryIndex = currentIndex;
+      let itemIndex = playlistIndexRef.current;
 
+      while (!playCanceledRef.current && !canceledRef.current) {
         const state = useAppStore.getState();
-        const currentBook = state.lastOpenedBook;
+        const entry = state.entries[entryIndex];
+
+        if (!entry) {
+          state.setIsPlaying(false);
+          break;
+        }
 
         if ('mediaSession' in navigator) {
-          const entry = state.entries[currentIndex];
+          const currentBook = state.lastOpenedBook;
           navigator.mediaSession.metadata = new MediaMetadata({
-            title: currentBook ? `${currentBook.volumeLabel} · #${currentIndex + 1}` : `Entry ${currentIndex + 1}`,
-            artist: entry ? (entry.jp || entry.ch || currentBook?.bookTitle || 'Lanobe') : (currentBook?.bookTitle || 'Lanobe'),
-            album: currentBook ? currentBook.bookTitle : 'Language Learning',
+            title: currentBook ? `${currentBook.volumeLabel} · #${entryIndex + 1}` : `Entry ${entryIndex + 1}`,
+            artist: entry.jp || entry.ch || currentBook?.bookTitle || 'Lanobe',
+            album: currentBook?.bookTitle || 'Language Learning',
           });
         }
         updateMediaSessionPlaybackState('playing');
 
-        while (playlistIndexRef.current < currentPlaylist.length) {
-          if (playCanceledRef.current || canceled) break;
-          
-          const item = currentPlaylist[playlistIndexRef.current];
-          let finished = false;
-          
+        const { playlist, error } = await waitForPlaylist(entryIndex);
+        if (playCanceledRef.current || canceledRef.current) break;
+
+        if (error || !playlist) {
+          const latestState = useAppStore.getState();
+          if (latestState.autoNext && entryIndex + 1 < latestState.entries.length) {
+            entryIndex += 1;
+            itemIndex = 0;
+            playlistIndexRef.current = 0;
+            internalAdvanceRef.current = true;
+            latestState.setCurrentIndex(entryIndex);
+            continue;
+          }
+
+          latestState.setIsPlaying(false);
+          break;
+        }
+
+        if (state.currentIndex !== entryIndex) {
+          internalAdvanceRef.current = true;
+          state.setCurrentIndex(entryIndex);
+        }
+
+        while (itemIndex < playlist.length && !playCanceledRef.current && !canceledRef.current) {
+          const item = playlist[itemIndex];
           let audioUrl = item.audioUrl;
           if (item.type === 'pause' && item.durationMs) {
             audioUrl = generateSilentWav(item.durationMs);
           }
 
-          if (audioUrl) {
-            const audio = ensurePersistentAudioElement(activeAudioRef);
-            if (!audio) {
-              finished = true;
-              break;
-            }
+          const completed = audioUrl ? await playAudioUrl(audioUrl, canceledRef) : true;
+          if (playCanceledRef.current || canceledRef.current) break;
+          if (!completed) return;
 
-            hintPlaybackAudioSession();
-            audio.src = audioUrl;
-            
-            await new Promise<void>((resolve) => {
-              audio.onplay = () => {
-                updateMediaSessionPlaybackState('playing');
-              };
-              audio.onended = () => { finished = true; resolve(); };
-              audio.onerror = () => { 
-                console.error('Audio playback error');
-                updateMediaSessionPlaybackState('paused');
-                finished = true; 
-                resolve(); 
-              };
-              audio.onpause = () => {
-                if (audio.ended || (audio.duration && audio.duration - audio.currentTime < 0.1)) {
-                  return;
-                }
-
-                updateMediaSessionPlaybackState('paused');
-
-                if (playCanceledRef.current || canceled || !useAppStore.getState().isPlaying) {
-                  resolve();
-                  return;
-                }
-
-                if (!document.hidden) {
-                  useAppStore.getState().setIsPlaying(false);
-                  resolve();
-                }
-              };
-              audio.play().catch((err) => {
-                console.error('Audio play error:', err);
-                updateMediaSessionPlaybackState('paused');
-                if (err.name === 'NotAllowedError') {
-                  if (!playCanceledRef.current && !canceled) {
-                    useAppStore.getState().setIsPlaying(false);
-                  }
-                  finished = false;
-                } else {
-                  finished = true;
-                }
-                resolve();
-              });
-            });
-            // We don't nullify activeAudioRef.current here so we can reuse it
-          } else {
-            finished = true;
-          }
-
-          if (playCanceledRef.current || canceled) break;
-
-          if (finished) {
-            playlistIndexRef.current++;
-          } else {
-            break;
-          }
+          itemIndex += 1;
+          playlistIndexRef.current = itemIndex;
         }
 
-        if (!playCanceledRef.current && !canceled && playlistIndexRef.current >= currentPlaylist.length) {
-          const state = useAppStore.getState();
-          if (state.autoNext) {
-            const nextIndex = currentIndex + 1;
-            if (nextIndex < state.entries.length) {
-              const pauseAudio = ensurePersistentAudioElement(activeAudioRef);
-              if (!pauseAudio) {
-                state.setCurrentIndex(nextIndex);
-                return;
-              }
-              hintPlaybackAudioSession();
-              pauseAudio.src = generateSilentWav(state.settings.pauseBetweenEntriesMs);
-              await new Promise<void>((resolve) => {
-                pauseAudio.onended = () => resolve();
-                pauseAudio.onerror = () => resolve();
-                pauseAudio.onpause = () => resolve();
-                pauseAudio.play().catch(() => resolve());
-              });
-              
-              if (!playCanceledRef.current && !canceled) {
-                state.setCurrentIndex(nextIndex);
-              }
-            } else {
-              updateMediaSessionPlaybackState('paused');
-              state.setIsPlaying(false);
-            }
-          } else {
-            updateMediaSessionPlaybackState('paused');
-            state.setIsPlaying(false);
-          }
-        }
-      };
+        if (playCanceledRef.current || canceledRef.current) break;
 
-      playSequence();
-
-      return () => {
-        canceled = true;
-        if (activeAudioRef.current) {
-          activeAudioRef.current.pause();
+        const latestState = useAppStore.getState();
+        if (!latestState.autoNext || entryIndex >= latestState.entries.length - 1) {
+          updateMediaSessionPlaybackState('paused');
+          latestState.setIsPlaying(false);
+          break;
         }
-      };
-    }
-  }, [currentIndex, isPlaying, currentPlaylist, currentFetchError]);
+
+        const gapCompleted = latestState.settings.pauseBetweenEntriesMs > 0
+          ? await playAudioUrl(generateSilentWav(latestState.settings.pauseBetweenEntriesMs), canceledRef)
+          : true;
+
+        if (playCanceledRef.current || canceledRef.current) break;
+        if (!gapCompleted) return;
+
+        entryIndex += 1;
+        itemIndex = 0;
+        playlistIndexRef.current = 0;
+        internalAdvanceRef.current = true;
+        latestState.setCurrentIndex(entryIndex);
+      }
+    };
+
+    void playSession();
+
+    return () => {
+      if (internalAdvanceRef.current) return;
+      canceledRef.current = true;
+      if (activeAudioRef.current) {
+        activeAudioRef.current.pause();
+      }
+    };
+  }, [currentIndex, isPlaying, settings]);
 
   return { audioCache, isFetching };
 }

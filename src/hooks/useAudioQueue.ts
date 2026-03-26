@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type MutableRefObject } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { AppSettings, Entry } from '../types';
 
@@ -9,6 +9,88 @@ interface PlaylistItem {
   rate?: number;
   durationMs?: number;
   audioUrl?: string;
+}
+
+interface AudioSessionNavigator extends Navigator {
+  audioSession?: {
+    type?: 'auto' | 'playback' | 'transient' | 'transient-solo';
+  };
+}
+
+const BACKGROUND_AUDIO_ELEMENT_ID = 'lanobe-background-audio';
+
+function ensurePersistentAudioElement(
+  audioRef: MutableRefObject<HTMLAudioElement | null>,
+): HTMLAudioElement | null {
+  if (typeof document === 'undefined') return null;
+
+  if (audioRef.current && document.body.contains(audioRef.current)) {
+    return audioRef.current;
+  }
+
+  const existing = document.getElementById(BACKGROUND_AUDIO_ELEMENT_ID);
+  if (existing instanceof HTMLAudioElement) {
+    audioRef.current = existing;
+    return existing;
+  }
+
+  const audio = document.createElement('audio');
+  audio.id = BACKGROUND_AUDIO_ELEMENT_ID;
+  audio.preload = 'auto';
+  audio.autoplay = false;
+  audio.loop = false;
+  audio.controls = false;
+  audio.setAttribute('playsinline', 'true');
+  audio.setAttribute('webkit-playsinline', 'true');
+  audio.setAttribute('x-webkit-airplay', 'allow');
+  audio.setAttribute('aria-hidden', 'true');
+  audio.tabIndex = -1;
+  audio.style.position = 'fixed';
+  audio.style.width = '1px';
+  audio.style.height = '1px';
+  audio.style.left = '0';
+  audio.style.bottom = '0';
+  audio.style.opacity = '0.001';
+  audio.style.pointerEvents = 'none';
+  audio.style.zIndex = '-1';
+  document.body.appendChild(audio);
+
+  audioRef.current = audio;
+  return audio;
+}
+
+function releasePersistentAudioElement(audio: HTMLAudioElement | null) {
+  if (!audio) return;
+
+  audio.pause();
+  audio.removeAttribute('src');
+  audio.load();
+
+  if (audio.id === BACKGROUND_AUDIO_ELEMENT_ID) {
+    audio.remove();
+  }
+}
+
+function hintPlaybackAudioSession() {
+  const browserNavigator = navigator as AudioSessionNavigator;
+
+  try {
+    if (browserNavigator.audioSession && browserNavigator.audioSession.type !== 'playback') {
+      browserNavigator.audioSession.type = 'playback';
+    }
+  } catch (error) {
+    console.debug('Audio session playback hint unavailable', error);
+  }
+}
+
+function updateMediaSessionPlaybackState(state: MediaSessionPlaybackState) {
+  if (!('mediaSession' in navigator)) return;
+
+  try {
+    navigator.mediaSession.playbackState = state;
+  } catch {
+    // Ignore browsers that expose Media Session partially.
+  }
 }
 
 function generateSilentWav(durationMs: number): string {
@@ -144,6 +226,78 @@ export function useAudioQueue() {
   const playCanceledRef = useRef(false);
   const playlistIndexRef = useRef(0);
 
+  useEffect(() => {
+    const audio = ensurePersistentAudioElement(activeAudioRef);
+    if (!audio) return;
+
+    hintPlaybackAudioSession();
+
+    return () => {
+      updateMediaSessionPlaybackState('none');
+      releasePersistentAudioElement(audio);
+      if (activeAudioRef.current === audio) {
+        activeAudioRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+
+    const setActionHandler = (
+      action: MediaSessionAction,
+      handler: MediaSessionActionHandler | null,
+    ) => {
+      try {
+        navigator.mediaSession.setActionHandler(action, handler);
+      } catch {
+        // Ignore actions not supported by the current browser.
+      }
+    };
+
+    setActionHandler('play', async () => {
+      const audio = ensurePersistentAudioElement(activeAudioRef);
+      if (!audio) return;
+
+      hintPlaybackAudioSession();
+
+      const state = useAppStore.getState();
+      if (state.isPlaying && audio.src && audio.paused) {
+        try {
+          await audio.play();
+          updateMediaSessionPlaybackState('playing');
+          return;
+        } catch (error) {
+          console.error('Failed to resume audio from media session', error);
+        }
+      }
+
+      state.setIsPlaying(true);
+    });
+
+    setActionHandler('pause', () => {
+      updateMediaSessionPlaybackState('paused');
+      useAppStore.getState().setIsPlaying(false);
+    });
+
+    setActionHandler('previoustrack', () => {
+      const state = useAppStore.getState();
+      if (state.currentIndex > 0) state.setCurrentIndex(state.currentIndex - 1);
+    });
+
+    setActionHandler('nexttrack', () => {
+      const state = useAppStore.getState();
+      if (state.currentIndex < state.entries.length - 1) state.setCurrentIndex(state.currentIndex + 1);
+    });
+
+    return () => {
+      setActionHandler('play', null);
+      setActionHandler('pause', null);
+      setActionHandler('previoustrack', null);
+      setActionHandler('nexttrack', null);
+    };
+  }, []);
+
   // Reset playlist index when currentIndex or settings change
   useEffect(() => {
     playlistIndexRef.current = 0;
@@ -253,6 +407,7 @@ export function useAudioQueue() {
       if (activeAudioRef.current) {
         activeAudioRef.current.pause();
       }
+      updateMediaSessionPlaybackState('paused');
       return;
     }
 
@@ -262,10 +417,12 @@ export function useAudioQueue() {
       if (state.autoNext) {
         const nextIndex = currentIndex + 1;
         if (nextIndex < state.entries.length) {
-          if (!activeAudioRef.current) {
-            activeAudioRef.current = new Audio();
+          const pauseAudio = ensurePersistentAudioElement(activeAudioRef);
+          if (!pauseAudio) {
+            state.setCurrentIndex(nextIndex);
+            return;
           }
-          const pauseAudio = activeAudioRef.current;
+          hintPlaybackAudioSession();
           pauseAudio.src = generateSilentWav(state.settings.pauseBetweenEntriesMs);
           pauseAudio.onended = () => {
             if (!playCanceledRef.current) {
@@ -297,30 +454,20 @@ export function useAudioQueue() {
       let canceled = false;
       
       const playSequence = async () => {
-        // Setup Media Session
-        if ('mediaSession' in navigator) {
-          const entry = useAppStore.getState().entries[currentIndex];
-          navigator.mediaSession.metadata = new MediaMetadata({
-            title: `Entry ${currentIndex + 1}`,
-            artist: entry ? (entry.jp || entry.ch || 'Lanobe') : 'Lanobe',
-            album: 'Language Learning',
-          });
+        hintPlaybackAudioSession();
 
-          navigator.mediaSession.setActionHandler('play', () => {
-            useAppStore.getState().setIsPlaying(true);
-          });
-          navigator.mediaSession.setActionHandler('pause', () => {
-            useAppStore.getState().setIsPlaying(false);
-          });
-          navigator.mediaSession.setActionHandler('previoustrack', () => {
-            const state = useAppStore.getState();
-            if (state.currentIndex > 0) state.setCurrentIndex(state.currentIndex - 1);
-          });
-          navigator.mediaSession.setActionHandler('nexttrack', () => {
-            const state = useAppStore.getState();
-            if (state.currentIndex < state.entries.length - 1) state.setCurrentIndex(state.currentIndex + 1);
+        const state = useAppStore.getState();
+        const currentBook = state.lastOpenedBook;
+
+        if ('mediaSession' in navigator) {
+          const entry = state.entries[currentIndex];
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: currentBook ? `${currentBook.volumeLabel} · #${currentIndex + 1}` : `Entry ${currentIndex + 1}`,
+            artist: entry ? (entry.jp || entry.ch || currentBook?.bookTitle || 'Lanobe') : (currentBook?.bookTitle || 'Lanobe'),
+            album: currentBook ? currentBook.bookTitle : 'Language Learning',
           });
         }
+        updateMediaSessionPlaybackState('playing');
 
         while (playlistIndexRef.current < currentPlaylist.length) {
           if (playCanceledRef.current || canceled) break;
@@ -334,30 +481,46 @@ export function useAudioQueue() {
           }
 
           if (audioUrl) {
-            if (!activeAudioRef.current) {
-              activeAudioRef.current = new Audio();
+            const audio = ensurePersistentAudioElement(activeAudioRef);
+            if (!audio) {
+              finished = true;
+              break;
             }
-            const audio = activeAudioRef.current;
+
+            hintPlaybackAudioSession();
             audio.src = audioUrl;
             
             await new Promise<void>((resolve) => {
+              audio.onplay = () => {
+                updateMediaSessionPlaybackState('playing');
+              };
               audio.onended = () => { finished = true; resolve(); };
               audio.onerror = () => { 
                 console.error('Audio playback error');
+                updateMediaSessionPlaybackState('paused');
                 finished = true; 
                 resolve(); 
               };
               audio.onpause = () => {
-                // Ignore the automatic pause that some browsers fire right before 'ended'
-                if (audio.duration && audio.duration - audio.currentTime < 0.1) return;
-                
-                if (!finished && !playCanceledRef.current && !canceled) {
-                  useAppStore.getState().setIsPlaying(false);
+                if (audio.ended || (audio.duration && audio.duration - audio.currentTime < 0.1)) {
+                  return;
                 }
-                resolve();
+
+                updateMediaSessionPlaybackState('paused');
+
+                if (playCanceledRef.current || canceled || !useAppStore.getState().isPlaying) {
+                  resolve();
+                  return;
+                }
+
+                if (!document.hidden) {
+                  useAppStore.getState().setIsPlaying(false);
+                  resolve();
+                }
               };
               audio.play().catch((err) => {
                 console.error('Audio play error:', err);
+                updateMediaSessionPlaybackState('paused');
                 if (err.name === 'NotAllowedError') {
                   if (!playCanceledRef.current && !canceled) {
                     useAppStore.getState().setIsPlaying(false);
@@ -388,10 +551,12 @@ export function useAudioQueue() {
           if (state.autoNext) {
             const nextIndex = currentIndex + 1;
             if (nextIndex < state.entries.length) {
-              if (!activeAudioRef.current) {
-                activeAudioRef.current = new Audio();
+              const pauseAudio = ensurePersistentAudioElement(activeAudioRef);
+              if (!pauseAudio) {
+                state.setCurrentIndex(nextIndex);
+                return;
               }
-              const pauseAudio = activeAudioRef.current;
+              hintPlaybackAudioSession();
               pauseAudio.src = generateSilentWav(state.settings.pauseBetweenEntriesMs);
               await new Promise<void>((resolve) => {
                 pauseAudio.onended = () => resolve();
@@ -404,9 +569,11 @@ export function useAudioQueue() {
                 state.setCurrentIndex(nextIndex);
               }
             } else {
+              updateMediaSessionPlaybackState('paused');
               state.setIsPlaying(false);
             }
           } else {
+            updateMediaSessionPlaybackState('paused');
             state.setIsPlaying(false);
           }
         }

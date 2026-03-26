@@ -1,10 +1,9 @@
-﻿import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Loader2, UploadCloud } from 'lucide-react';
 import { Header } from '../../components/Header';
 import { Controls } from '../../components/Controls';
 import { EntryList } from '../../components/EntryList';
 import { SettingsModal } from '../../components/SettingsModal';
-import { ChaptersModal } from '../../components/ChaptersModal';
 import { useAudioQueue } from '../../hooks/useAudioQueue';
 import { useAppStore } from '../../store/useAppStore';
 import { useLoadContent } from '../../hooks/useLoadContent';
@@ -13,13 +12,11 @@ import { useUiText } from '../../hooks/useUiText';
 interface ReaderExperienceProps {
   showHeader?: boolean;
   topInsetClassName?: string;
-  onOpenVolumePanel?: () => void;
   returnTo?: string;
 }
 
-export function ReaderExperience({ showHeader = true, topInsetClassName, onOpenVolumePanel, returnTo }: ReaderExperienceProps) {
+export function ReaderExperience({ showHeader = true, topInsetClassName, returnTo }: ReaderExperienceProps) {
   const [showSettings, setShowSettings] = useState(false);
-  const [showChapters, setShowChapters] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const { isGeneratingChapters } = useAppStore();
   const { loadContent } = useLoadContent();
@@ -81,9 +78,9 @@ export function ReaderExperience({ showHeader = true, topInsetClassName, onOpenV
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto pb-56 md:pb-40">
-        <div className={[ 'mx-auto max-w-5xl p-4 md:p-6 lg:p-8', topInsetClassName ?? '', ].join(' ')}>
-          {showHeader ? <Header onOpenSettings={() => setShowSettings(true)} onOpenChapters={() => setShowChapters(true)} /> : null}
+      <div className="flex-1 overflow-y-auto pb-28 md:pb-32">
+        <div className={['mx-auto max-w-5xl p-4 md:p-5 lg:p-6', topInsetClassName ?? ''].join(' ')}>
+          {showHeader ? <Header onOpenSettings={() => setShowSettings(true)} onOpenChapters={() => undefined} /> : null}
           {!isGeneratingChapters && <EntryList />}
         </div>
       </div>
@@ -91,15 +88,11 @@ export function ReaderExperience({ showHeader = true, topInsetClassName, onOpenV
       <div className="absolute bottom-0 left-0 right-0 z-[60]">
         <Controls
           onOpenSettings={() => setShowSettings(true)}
-          onOpenChapters={() => setShowChapters(true)}
-          onOpenVolumePanel={onOpenVolumePanel}
           returnTo={returnTo}
         />
       </div>
 
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
-      {showChapters && <ChaptersModal onClose={() => setShowChapters(false)} />}
     </div>
   );
 }
-

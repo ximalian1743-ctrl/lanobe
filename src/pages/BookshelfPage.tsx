@@ -1,6 +1,7 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, BookMarked, Clock3, Loader2 } from 'lucide-react';
+import { GuideModal } from '../components/GuideModal';
 import { SiteFrame } from '../components/SiteFrame';
 import { fetchBooksIndex } from '../services/bookService';
 import { buildBuiltInBookProgressKey, BuiltInBookSummary } from '../types/books';
@@ -9,9 +10,11 @@ import { useUiText } from '../hooks/useUiText';
 import { getFormattedVolumeLabel, getLocalizedBookSummary } from '../i18n/books';
 
 export function BookshelfPage() {
+  const [showGuide, setShowGuide] = useState(false);
   const [books, setBooks] = useState<BuiltInBookSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedVolumes, setSelectedVolumes] = useState<Record<string, string>>({});
   const builtInBookProgress = useAppStore((state) => state.builtInBookProgress);
   const lastOpenedVolumes = useAppStore((state) => state.lastOpenedVolumes);
   const lastOpenedBook = useAppStore((state) => state.lastOpenedBook);
@@ -51,24 +54,71 @@ export function BookshelfPage() {
     () => (lastOpenedBook ? localizedBooks.find((book) => book.slug === lastOpenedBook.slug) ?? null : null),
     [lastOpenedBook, localizedBooks],
   );
+  const guideContent = useMemo(() => {
+    if (uiLanguage === 'ja-JP') {
+      return {
+        title: '本棚の使い方',
+        summary: 'この版では、先に本棚で巻を選んでからリーダーに入る流れに整理しました。',
+        steps: [
+          '本ごとに表示される巻ボタンから、再生したい巻を先に選びます。',
+          'オレンジ色のボタンで選択中の巻へ入り、前回位置があればその巻の進捗から再開します。',
+          'リーダー内では巻切り替えを常時浮かせず、設定ボタンの中に検索や移動をまとめています。',
+        ],
+      };
+    }
+
+    if (uiLanguage === 'en-US') {
+      return {
+        title: 'How the Bookshelf Works',
+        summary: 'This version moves volume selection to the bookshelf, so you choose the volume before entering the reader.',
+        steps: [
+          'Use the volume chips on each book card to pick the volume you want to listen to or read.',
+          'Open the selected volume with the orange button. If that volume has saved progress, it resumes from there.',
+          'The reader no longer keeps the volume switcher floating. Search, jump, and playback controls now live under Settings.',
+        ],
+      };
+    }
+
+    return {
+      title: '书架使用引导',
+      summary: '这一版把“先选分册，再进入阅读”放回书架页，阅读页会更清爽。',
+      steps: [
+        '先在每本书卡片里点选你要播放或阅读的分册。',
+        '橙色按钮会直接进入当前选中的分册；如果该分册已有进度，会从保存位置继续。',
+        '进入阅读后，不再一直悬浮显示分册切换，搜索、跳转和播放控制统一收进设置按钮里。',
+      ],
+    };
+  }, [uiLanguage]);
+
+  useEffect(() => {
+    if (window.localStorage.getItem('lanobe-guide-bookshelf-v2') !== '1') {
+      setShowGuide(true);
+    }
+  }, []);
+
+  const handleCloseGuide = () => {
+    window.localStorage.setItem('lanobe-guide-bookshelf-v2', '1');
+    setShowGuide(false);
+  };
 
   return (
-    <SiteFrame
-      eyebrow={text.bookshelf.eyebrow}
-      title={text.bookshelf.title}
-      description={text.bookshelf.description}
-    >
-      {loading ? (
-        <div className="flex items-center gap-3 rounded-[30px] border border-stone-800/80 bg-stone-950/55 p-8 text-stone-300">
-          <Loader2 className="animate-spin text-orange-300" size={18} />
-          {text.bookshelf.loading}
-        </div>
-      ) : error ? (
-        <div className="rounded-[30px] border border-red-500/20 bg-red-500/10 p-8 text-red-200">
-          {error}
-        </div>
-      ) : (
-        <main className="space-y-5">
+    <>
+      <SiteFrame
+        eyebrow={text.bookshelf.eyebrow}
+        title={text.bookshelf.title}
+        description={text.bookshelf.description}
+      >
+        {loading ? (
+          <div className="flex items-center gap-3 rounded-[30px] border border-stone-800/80 bg-stone-950/55 p-8 text-stone-300">
+            <Loader2 className="animate-spin text-orange-300" size={18} />
+            {text.bookshelf.loading}
+          </div>
+        ) : error ? (
+          <div className="rounded-[30px] border border-red-500/20 bg-red-500/10 p-8 text-red-200">
+            {error}
+          </div>
+        ) : (
+          <main className="space-y-5">
           {lastOpenedBook && (
             <Link
               to={`/lanobe/book/${lastOpenedBook.slug}?volume=${lastOpenedBook.volumeId}`}
@@ -93,8 +143,20 @@ export function BookshelfPage() {
           <div className="grid gap-5 md:grid-cols-2">
             {localizedBooks.map((book) => {
               const resumeVolumeId = lastOpenedVolumes[book.slug] ?? book.defaultVolumeId;
-              const progress = builtInBookProgress[buildBuiltInBookProgressKey(book.slug, resumeVolumeId)];
-              const hasSavedProgress = !!progress;
+              const selectedVolumeId = selectedVolumes[book.slug] ?? resumeVolumeId;
+              const selectedProgress = builtInBookProgress[buildBuiltInBookProgressKey(book.slug, selectedVolumeId)];
+              const resumeProgress = builtInBookProgress[buildBuiltInBookProgressKey(book.slug, resumeVolumeId)];
+              const hasSelectedProgress = !!selectedProgress;
+              const hasResumeProgress = !!resumeProgress;
+              const volumeOptions = Array.from({ length: book.volumeCount }, (_, index) => {
+                const volumeNumber = index + 1;
+                const volumeId = `volume-${String(volumeNumber).padStart(2, '0')}`;
+
+                return {
+                  id: volumeId,
+                  label: getFormattedVolumeLabel(volumeId, uiLanguage),
+                };
+              });
 
               return (
                 <article
@@ -127,37 +189,82 @@ export function BookshelfPage() {
                   </div>
 
                   <div className="mt-5 rounded-2xl border border-stone-800/80 bg-stone-900/65 px-4 py-3 text-sm text-stone-300/90">
-                    {hasSavedProgress
+                    {hasSelectedProgress
                       ? format(text.bookshelf.savedProgress, {
-                          volumeLabel: getFormattedVolumeLabel(progress.volumeId, uiLanguage),
-                          line: progress.currentIndex + 1,
-                          entryCount: progress.entryCount,
+                          volumeLabel: getFormattedVolumeLabel(selectedProgress.volumeId, uiLanguage),
+                          line: selectedProgress.currentIndex + 1,
+                          entryCount: selectedProgress.entryCount,
                         })
                       : text.bookshelf.noProgress}
                   </div>
 
+                  <div className="mt-5 rounded-2xl border border-stone-800/80 bg-stone-900/65 p-4">
+                    <p className="text-xs uppercase tracking-[0.22em] text-stone-400">{text.bookshelf.pickVolumeLabel}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {volumeOptions.map((volume) => (
+                        <button
+                          key={`${book.slug}-${volume.id}`}
+                          type="button"
+                          onClick={() =>
+                            setSelectedVolumes((current) => ({
+                              ...current,
+                              [book.slug]: volume.id,
+                            }))
+                          }
+                          className={[
+                            'rounded-full px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] transition-colors',
+                            selectedVolumeId === volume.id
+                              ? 'bg-orange-400 text-stone-950'
+                              : 'border border-stone-700 bg-stone-950/75 text-stone-200 hover:border-stone-500',
+                          ].join(' ')}
+                        >
+                          {volume.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="mt-6 flex flex-wrap gap-3">
                     <Link
-                      to={`/lanobe/book/${book.slug}?volume=${resumeVolumeId}`}
+                      to={`/lanobe/book/${book.slug}?volume=${selectedVolumeId}`}
                       className="inline-flex items-center gap-2 rounded-full bg-orange-400 px-5 py-3 text-sm font-bold text-stone-950 transition-transform hover:-translate-y-0.5"
                     >
-                      {hasSavedProgress ? text.common.resume : text.common.startReading}
+                      {hasSelectedProgress ? text.common.resume : text.bookshelf.openSelectedVolume}
                       <ArrowRight size={16} />
                     </Link>
-                    <Link
-                      to={`/lanobe/book/${book.slug}?volume=${book.defaultVolumeId}`}
-                      className="inline-flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-5 py-3 text-sm font-semibold text-stone-100 hover:border-stone-500"
-                    >
-                      {text.bookshelf.openVolumeOne}
-                    </Link>
+                    {hasResumeProgress && selectedVolumeId !== resumeVolumeId ? (
+                      <Link
+                        to={`/lanobe/book/${book.slug}?volume=${resumeVolumeId}`}
+                        className="inline-flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-5 py-3 text-sm font-semibold text-stone-100 hover:border-stone-500"
+                      >
+                        {text.bookshelf.resumeSavedVolume}
+                      </Link>
+                    ) : (
+                      <Link
+                        to={`/lanobe/book/${book.slug}?volume=${book.defaultVolumeId}`}
+                        className="inline-flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-5 py-3 text-sm font-semibold text-stone-100 hover:border-stone-500"
+                      >
+                        {text.bookshelf.openVolumeOne}
+                      </Link>
+                    )}
                   </div>
                 </article>
               );
             })}
           </div>
-        </main>
+          </main>
+        )}
+      </SiteFrame>
+
+      {showGuide && (
+        <GuideModal
+          title={guideContent.title}
+          summary={guideContent.summary}
+          steps={guideContent.steps}
+          closeLabel={text.common.close}
+          onClose={handleCloseGuide}
+        />
       )}
-    </SiteFrame>
+    </>
   );
 }
-

@@ -1,6 +1,7 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, BookCopy, Loader2, PanelTopClose, PanelTopOpen } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
+import { GuideModal } from '../components/GuideModal';
 import { ReaderExperience } from '../features/reader/ReaderExperience';
 import { useLoadContent } from '../hooks/useLoadContent';
 import { fetchBookMeta, fetchBookText } from '../services/bookService';
@@ -8,25 +9,59 @@ import { buildBuiltInBookProgressKey, BuiltInBookMeta } from '../types/books';
 import { useAppStore } from '../store/useAppStore';
 import { useUiText } from '../hooks/useUiText';
 import { getLocalizedBookMeta } from '../i18n/books';
-import { LanguageSwitcher } from '../components/LanguageSwitcher';
 
 export function ReaderPage() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [meta, setMeta] = useState<BuiltInBookMeta | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hydratedLoadKey, setHydratedLoadKey] = useState<string | null>(null);
-  const [showVolumePanel, setShowVolumePanel] = useState(false);
   const lastLoadedKey = useRef<string | null>(null);
   const { loadContent } = useLoadContent();
   const lastOpenedVolumeId = useAppStore((state) => (slug ? state.lastOpenedVolumes[slug] : undefined));
   const currentIndex = useAppStore((state) => state.currentIndex);
   const entryCount = useAppStore((state) => state.entries.length);
   const saveBuiltInBookProgress = useAppStore((state) => state.saveBuiltInBookProgress);
-  const { text, format, uiLanguage } = useUiText();
+  const { text, uiLanguage } = useUiText();
 
   const volumeId = searchParams.get('volume');
+  const guideContent = useMemo(() => {
+    if (uiLanguage === 'ja-JP') {
+      return {
+        title: 'リーダーの使い方',
+        summary: 'この画面は本文を広く見せるために、上部と下部のコントロールをかなり絞っています。',
+        steps: [
+          '下部には再生、前後移動、現在地復帰、設定だけを残しています。',
+          '検索、割合ジャンプ、自動連続再生、表示切り替え、再生順プリセットは設定ボタンの中に移しました。',
+          '別の巻に切り替えたいときは、この画面ではなく本棚へ戻って選び直してください。',
+        ],
+      };
+    }
+
+    if (uiLanguage === 'en-US') {
+      return {
+        title: 'Reader Guide',
+        summary: 'This page now keeps the novel area much larger by trimming the always-visible controls.',
+        steps: [
+          'The bottom bar only keeps playback, previous/next, locate, and Settings.',
+          'Search, percentage jump, auto next, display options, and playback presets are now inside Settings.',
+          'If you want a different volume, go back to the bookshelf and choose it there first.',
+        ],
+      };
+    }
+
+    return {
+      title: '阅读页使用引导',
+      summary: '这一页已经把长期占位的控件收紧，正文可见区域会大很多。',
+      steps: [
+        '底部只保留播放、前后切换、定位和设置按钮。',
+        '搜索、百分比跳转、自动连播、显示切换和播放顺序预设，都收进设置按钮里了。',
+        '如果想切到别的分册，请先回书架选择，这一页不再常驻悬浮分册切换。',
+      ],
+    };
+  }, [uiLanguage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -159,9 +194,15 @@ export function ReaderPage() {
     };
   }, [localizedMeta, selectedVolume?.label, slug]);
 
-  const handleVolumeSelect = (nextVolumeId: string) => {
-    setSearchParams({ volume: nextVolumeId });
-    setShowVolumePanel(false);
+  useEffect(() => {
+    if (window.localStorage.getItem('lanobe-guide-reader-v2') !== '1') {
+      setShowGuide(true);
+    }
+  }, []);
+
+  const handleCloseGuide = () => {
+    window.localStorage.setItem('lanobe-guide-reader-v2', '1');
+    setShowGuide(false);
   };
 
   if (loading) {
@@ -191,11 +232,11 @@ export function ReaderPage() {
   }
 
   return (
-    <div className="relative">
-      <div className="pointer-events-none fixed left-4 right-4 top-4 z-[65] md:left-6 md:right-6">
-        <div className="pointer-events-auto rounded-[28px] border border-stone-700/80 bg-stone-950/80 p-4 shadow-2xl shadow-black/35 backdrop-blur-md">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-            <div className="space-y-2">
+    <>
+      <div className="relative">
+        <div className="pointer-events-none fixed left-4 right-4 top-4 z-[65] md:left-6 md:right-6">
+          <div className="pointer-events-auto flex items-center justify-between gap-3 rounded-[22px] border border-stone-700/80 bg-stone-950/82 px-4 py-3 shadow-2xl shadow-black/35 backdrop-blur-md">
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <Link
                   to="/lanobe/bookshelf"
@@ -207,70 +248,31 @@ export function ReaderPage() {
                 <div className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200/90">
                   {text.reader.savedStatus}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowVolumePanel((value) => !value)}
-                  className="inline-flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-stone-100 transition-colors hover:border-stone-500"
-                >
-                  {showVolumePanel ? <PanelTopClose size={14} /> : <PanelTopOpen size={14} />}
-                  {showVolumePanel ? text.reader.hidePanel : text.reader.showPanel}
-                </button>
               </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.26em] text-orange-200/85">{text.reader.utilityLabel}</p>
-                <h1 className="mt-1 text-xl font-black tracking-tight text-stone-100 md:text-2xl">{localizedMeta.title}</h1>
-                <p className="mt-1 text-xs uppercase tracking-[0.22em] text-stone-400">
-                  {localizedMeta.author} / {localizedMeta.illustrator}
-                </p>
-                <p className="mt-2 text-sm text-stone-300/80">{format(text.reader.autoSaveMessage, { line: currentIndex + 1 })}</p>
-                <p className="mt-1 text-xs text-stone-500">{text.reader.returnHint}</p>
-              </div>
+              <h1 className="mt-2 truncate text-sm font-bold tracking-tight text-stone-100 md:text-base">{localizedMeta.title}</h1>
             </div>
-
-            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-              <div className="rounded-full border border-stone-700/80 bg-stone-900/80 px-3 py-2 text-xs uppercase tracking-[0.25em] text-orange-200/85">
-                {selectedVolume.label}
-              </div>
-              <LanguageSwitcher compact />
+            <div className="rounded-full border border-stone-700/80 bg-stone-900/80 px-3 py-2 text-xs uppercase tracking-[0.22em] text-orange-200/85">
+              {selectedVolume.label}
             </div>
           </div>
-
-          {showVolumePanel && (
-            <div className="mt-4 rounded-2xl border border-stone-800/80 bg-stone-900/70 p-4">
-              <div className="flex items-center gap-2 text-orange-200/85">
-                <BookCopy size={16} />
-                <p className="text-xs uppercase tracking-[0.24em]">{text.reader.volumePanelTitle}</p>
-              </div>
-              <p className="mt-2 text-sm text-stone-400">{text.reader.volumePanelDescription}</p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {localizedMeta.volumes.map((volume) => (
-                  <button
-                    key={volume.id}
-                    type="button"
-                    onClick={() => handleVolumeSelect(volume.id)}
-                    className={[
-                      'rounded-full px-3 py-2 text-xs font-bold uppercase tracking-[0.2em] transition-colors',
-                      volume.id === selectedVolume.id
-                        ? 'bg-orange-400 text-stone-950'
-                        : 'border border-stone-700 bg-stone-950/75 text-stone-200 hover:border-stone-500',
-                    ].join(' ')}
-                  >
-                    {volume.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
+
+        <ReaderExperience
+          showHeader={false}
+          topInsetClassName="pt-20 md:pt-24"
+          returnTo="/lanobe/bookshelf"
+        />
       </div>
 
-      <ReaderExperience
-        showHeader={false}
-        topInsetClassName="pt-40 md:pt-44"
-        onOpenVolumePanel={() => setShowVolumePanel((value) => !value)}
-        returnTo="/lanobe/bookshelf"
-      />
-    </div>
+      {showGuide && (
+        <GuideModal
+          title={guideContent.title}
+          summary={guideContent.summary}
+          steps={guideContent.steps}
+          closeLabel={text.common.close}
+          onClose={handleCloseGuide}
+        />
+      )}
+    </>
   );
 }
-

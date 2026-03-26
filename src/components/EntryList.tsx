@@ -1,4 +1,4 @@
-﻿import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Volume2 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { AppSettings, Entry } from '../types';
@@ -29,13 +29,16 @@ const EntryItem = memo(
     const fetching = useAppStore((state) => state.isFetching[originalIndex]);
     const fetchError = useAppStore((state) => state.fetchErrors[originalIndex]);
     const { text } = useUiText();
+    const compact = settings.readerDensity === 'compact';
 
     return (
       <li
         ref={activeRef}
         onClick={() => onSelect(originalIndex)}
         className={cn(
-          'group relative cursor-pointer overflow-hidden rounded-2xl border p-4 transition-all duration-300 md:rounded-3xl md:p-6',
+          compact
+            ? 'group relative cursor-pointer overflow-hidden rounded-2xl border p-3 transition-all duration-300 md:p-4'
+            : 'group relative cursor-pointer overflow-hidden rounded-2xl border p-4 transition-all duration-300 md:rounded-3xl md:p-6',
           isActive
             ? isPlaying
               ? 'border-blue-500/50 bg-blue-900/20 shadow-[0_0_30px_rgba(59,130,246,0.1)]'
@@ -45,7 +48,7 @@ const EntryItem = memo(
       >
         {isActive && isPlaying && <div className="absolute bottom-0 left-0 top-0 w-1 bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]"></div>}
 
-        <div className="mb-3 flex items-start justify-between md:mb-4">
+        <div className={compact ? 'mb-2 flex items-start justify-between' : 'mb-3 flex items-start justify-between md:mb-4'}>
           <span
             className={cn(
               'flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-bold md:px-2.5 md:text-xs',
@@ -80,7 +83,9 @@ const EntryItem = memo(
         {settings.showJP && entry.jp && (
           <p
             className={cn(
-              'mb-2 text-lg font-medium leading-relaxed tracking-wide transition-colors md:mb-3 md:text-2xl',
+              compact
+                ? 'mb-1.5 text-base font-medium leading-7 tracking-wide transition-colors md:mb-2 md:text-lg'
+                : 'mb-2 text-lg font-medium leading-relaxed tracking-wide transition-colors md:mb-3 md:text-2xl',
               isActive ? 'text-blue-100' : 'text-slate-200 group-hover:text-slate-100',
             )}
           >
@@ -89,18 +94,25 @@ const EntryItem = memo(
         )}
 
         {settings.showZH && entry.ch && (
-          <p className={cn('text-sm leading-relaxed transition-colors md:text-lg', isActive ? 'text-blue-300/80' : 'text-slate-400 group-hover:text-slate-300')}>
+          <p
+            className={cn(
+              compact ? 'text-xs leading-6 transition-colors md:text-sm' : 'text-sm leading-relaxed transition-colors md:text-lg',
+              isActive ? 'text-blue-300/80' : 'text-slate-400 group-hover:text-slate-300',
+            )}
+          >
             {entry.ch}
           </p>
         )}
 
         {settings.showWords && entry.words.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-1.5 border-t border-slate-800/50 pt-3 md:mt-5 md:gap-2 md:pt-4">
+          <div className={compact ? 'mt-3 flex flex-wrap gap-1.5 border-t border-slate-800/50 pt-2.5' : 'mt-4 flex flex-wrap gap-1.5 border-t border-slate-800/50 pt-3 md:mt-5 md:gap-2 md:pt-4'}>
             {entry.words.map((word, index) => (
               <span
                 key={`${entry.id}-${index}`}
                 className={cn(
-                  'inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] shadow-sm transition-colors md:rounded-xl md:px-3 md:py-1.5 md:text-sm',
+                  compact
+                    ? 'inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] shadow-sm transition-colors md:text-xs'
+                    : 'inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] shadow-sm transition-colors md:rounded-xl md:px-3 md:py-1.5 md:text-sm',
                   isActive ? 'border-blue-800/50 bg-blue-950/50 text-blue-300' : 'border-slate-800/80 bg-slate-950/50 text-slate-300',
                 )}
               >
@@ -124,6 +136,7 @@ export function EntryList() {
   const settings = useAppStore((state) => state.settings);
   const locateTrigger = useAppStore((state) => state.locateTrigger);
   const { text, format } = useUiText();
+  const compact = settings.readerDensity === 'compact';
 
   const activeRef = useRef<HTMLLIElement>(null);
   const activePage = Math.floor(currentIndex / ITEMS_PER_PAGE);
@@ -159,9 +172,9 @@ export function EntryList() {
   }
 
   return (
-    <div className="pb-32">
+    <div className="pb-20">
       {totalPages > 1 && (
-        <div className="mb-6 flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/80 p-3 shadow-sm backdrop-blur-sm">
+        <div className="mb-5 flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/80 p-3 shadow-sm backdrop-blur-sm">
           <button
             onClick={() => setCurrentPage((page) => Math.max(0, page - 1))}
             disabled={currentPage === 0}
@@ -182,7 +195,7 @@ export function EntryList() {
         </div>
       )}
 
-      <ul className="space-y-4">
+      <ul className={compact ? 'space-y-3' : 'space-y-4'}>
         {currentEntries.map(({ entry, originalIndex }) => (
           <EntryItem
             key={entry.id}
@@ -199,4 +212,3 @@ export function EntryList() {
     </div>
   );
 }
-

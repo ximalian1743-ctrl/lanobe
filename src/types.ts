@@ -26,6 +26,7 @@ export interface AppSettings extends BackendSettings {
   showZH: boolean;
   showWords: boolean;
   showFurigana: boolean;
+  readerDensity: 'compact' | 'comfortable';
   entryConcurrency: number;
   aiApiKey: string;
   aiApiBase: string;

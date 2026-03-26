@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useAppStore } from '../store/useAppStore';
+import { buildLocalChapters } from '../lib/chapters';
 import { parseTxt } from '../lib/parser';
 import { generateChapters } from '../services/aiService';
 import { Chapter } from '../types';
@@ -9,22 +10,8 @@ interface LoadContentOptions {
   skipAi?: boolean;
 }
 
-function buildFallbackChapters(entryCount: number): Chapter[] {
-  if (entryCount <= 0) {
-    return [];
-  }
-
-  const sectionSize = 80;
-  const chapterCount = Math.max(1, Math.ceil(entryCount / sectionSize));
-
-  return Array.from({ length: chapterCount }, (_, index) => ({
-    title: `Section ${String(index + 1).padStart(2, '0')}`,
-    index: Math.min(index * sectionSize, entryCount - 1),
-  }));
-}
-
 export function useLoadContent() {
-  const { setEntries, setIsGeneratingChapters, setChapters, settings } = useAppStore();
+  const { setEntries, setIsGeneratingChapters, setChapters, settings, uiLanguage } = useAppStore();
 
   const loadContent = useCallback(async (text: string, options?: LoadContentOptions) => {
     const parsed = parseTxt(text);
@@ -38,7 +25,7 @@ export function useLoadContent() {
     }
 
     if (options?.skipAi) {
-      setChapters(buildFallbackChapters(parsed.length));
+      setChapters(buildLocalChapters(parsed, uiLanguage));
       return;
     }
 
@@ -56,12 +43,12 @@ export function useLoadContent() {
     } catch (error) {
       console.error('Failed to generate chapters', error);
       if (useAppStore.getState().chapters.length === 0) {
-        setChapters(buildFallbackChapters(parsed.length));
+        setChapters(buildLocalChapters(parsed, uiLanguage));
       }
     } finally {
       setIsGeneratingChapters(false);
     }
-  }, [setChapters, setEntries, setIsGeneratingChapters, settings.aiApiBase, settings.aiApiKey, settings.aiModel, settings.apiBase]);
+  }, [setChapters, setEntries, setIsGeneratingChapters, settings.aiApiBase, settings.aiApiKey, settings.aiModel, settings.apiBase, uiLanguage]);
 
   return { loadContent };
 }

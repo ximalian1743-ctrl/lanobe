@@ -1,24 +1,25 @@
 import React, { useCallback, useState } from 'react';
 import { Loader2, UploadCloud } from 'lucide-react';
-import { Header } from '../../components/Header';
+import { AiExplainModal } from '../../components/AiExplainModal';
 import { Controls } from '../../components/Controls';
 import { EntryList } from '../../components/EntryList';
+import { Header } from '../../components/Header';
 import { SettingsModal } from '../../components/SettingsModal';
 import { useAudioQueue } from '../../hooks/useAudioQueue';
-import { useAppStore } from '../../store/useAppStore';
 import { useLoadContent } from '../../hooks/useLoadContent';
+import { useAppStore } from '../../store/useAppStore';
 import { useUiText } from '../../hooks/useUiText';
 
 interface ReaderExperienceProps {
   showHeader?: boolean;
-  topInsetClassName?: string;
   returnTo?: string;
 }
 
-export function ReaderExperience({ showHeader = true, topInsetClassName, returnTo }: ReaderExperienceProps) {
+export function ReaderExperience({ showHeader = true, returnTo }: ReaderExperienceProps) {
   const [showSettings, setShowSettings] = useState(false);
+  const [showAiExplain, setShowAiExplain] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const { isGeneratingChapters } = useAppStore();
+  const { isGeneratingChapters, setIsPlaying } = useAppStore();
   const { loadContent } = useLoadContent();
   const { text } = useUiText();
 
@@ -51,9 +52,14 @@ export function ReaderExperience({ showHeader = true, topInsetClassName, returnT
     [loadContent],
   );
 
+  const handleOpenAiExplain = () => {
+    setIsPlaying(false);
+    setShowAiExplain(true);
+  };
+
   return (
     <div
-      className="relative flex h-screen flex-col overflow-hidden bg-slate-950 font-sans text-slate-200 selection:bg-blue-500/30"
+      className="relative flex h-[100dvh] min-h-screen flex-col bg-slate-950 font-sans text-slate-200 selection:bg-blue-500/30"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -78,21 +84,21 @@ export function ReaderExperience({ showHeader = true, topInsetClassName, returnT
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto pb-28 md:pb-32">
-        <div className={['mx-auto max-w-5xl p-4 md:p-5 lg:p-6', topInsetClassName ?? ''].join(' ')}>
+      <div className="flex-1 overflow-y-auto pb-[calc(env(safe-area-inset-bottom)+8.75rem)] md:pb-[calc(env(safe-area-inset-bottom)+9.5rem)]">
+        <div className="mx-auto max-w-5xl p-4 md:p-5 lg:p-6">
           {showHeader ? <Header onOpenSettings={() => setShowSettings(true)} onOpenChapters={() => undefined} /> : null}
           {!isGeneratingChapters && <EntryList />}
         </div>
       </div>
 
-      <div className="absolute bottom-0 left-0 right-0 z-[60]">
-        <Controls
-          onOpenSettings={() => setShowSettings(true)}
-          returnTo={returnTo}
-        />
-      </div>
+      <Controls
+        onOpenSettings={() => setShowSettings(true)}
+        onOpenAi={handleOpenAiExplain}
+        returnTo={returnTo}
+      />
 
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showAiExplain && <AiExplainModal onClose={() => setShowAiExplain(false)} />}
     </div>
   );
 }

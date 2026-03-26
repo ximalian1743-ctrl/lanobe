@@ -328,6 +328,9 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                   <input type="password" value={settings.aiApiKey || ''} onChange={(e) => updateSettings({ aiApiKey: e.target.value })} placeholder={text.settings.apiKey} className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-slate-200" />
                   <input type="text" value={settings.aiModel || ''} onChange={(e) => updateSettings({ aiModel: e.target.value })} placeholder={text.settings.model} className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-slate-200" />
                 </div>
+                <p className="mt-4 rounded-2xl border border-amber-400/15 bg-amber-500/10 p-4 text-sm leading-7 text-amber-100/90">
+                  {text.settings.aiExplainHint}
+                </p>
               </section>
               <section className="rounded-3xl border border-slate-800/60 bg-slate-950/50 p-5">
                 <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-blue-400">{text.settings.performanceSection}</h3>

@@ -1,11 +1,10 @@
-import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useEffect, useMemo, useRef } from 'react';
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Volume2 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { AppSettings, Entry } from '../types';
 import { cn } from '../lib/utils';
 import { useUiText } from '../hooks/useUiText';
-
-const ITEMS_PER_PAGE = 50;
+import { clampPageIndex, getTotalPages, ITEMS_PER_PAGE } from '../lib/pagination';
 
 const EntryItem = memo(
   ({
@@ -132,6 +131,8 @@ export function EntryList() {
   const entries = useAppStore((state) => state.entries);
   const currentIndex = useAppStore((state) => state.currentIndex);
   const setCurrentIndex = useAppStore((state) => state.setCurrentIndex);
+  const currentPage = useAppStore((state) => state.readerPageIndex);
+  const setCurrentPage = useAppStore((state) => state.setReaderPageIndex);
   const isPlaying = useAppStore((state) => state.isPlaying);
   const settings = useAppStore((state) => state.settings);
   const locateTrigger = useAppStore((state) => state.locateTrigger);
@@ -139,12 +140,6 @@ export function EntryList() {
   const compact = settings.readerDensity === 'compact';
 
   const activeRef = useRef<HTMLLIElement>(null);
-  const activePage = Math.floor(currentIndex / ITEMS_PER_PAGE);
-  const [currentPage, setCurrentPage] = useState(activePage);
-
-  useEffect(() => {
-    setCurrentPage(Math.floor(currentIndex / ITEMS_PER_PAGE));
-  }, [currentIndex]);
 
   useEffect(() => {
     if (activeRef.current) {
@@ -152,7 +147,7 @@ export function EntryList() {
     }
   }, [currentIndex, currentPage, locateTrigger]);
 
-  const totalPages = Math.max(1, Math.ceil(entries.length / ITEMS_PER_PAGE));
+  const totalPages = getTotalPages(entries.length);
 
   const currentEntries = useMemo(() => {
     const start = currentPage * ITEMS_PER_PAGE;
@@ -176,7 +171,7 @@ export function EntryList() {
       {totalPages > 1 && (
         <div className="mb-5 flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/80 p-3 shadow-sm backdrop-blur-sm">
           <button
-            onClick={() => setCurrentPage((page) => Math.max(0, page - 1))}
+            onClick={() => setCurrentPage(clampPageIndex(currentPage - 1, entries.length))}
             disabled={currentPage === 0}
             className="rounded-xl bg-slate-800 p-2 text-slate-300 transition-colors hover:bg-slate-700 disabled:opacity-30"
           >
@@ -186,7 +181,7 @@ export function EntryList() {
             {format(text.entryList.pageLabel, { page: currentPage + 1, total: totalPages })}
           </span>
           <button
-            onClick={() => setCurrentPage((page) => Math.min(totalPages - 1, page + 1))}
+            onClick={() => setCurrentPage(clampPageIndex(currentPage + 1, entries.length))}
             disabled={currentPage === totalPages - 1}
             className="rounded-xl bg-slate-800 p-2 text-slate-300 transition-colors hover:bg-slate-700 disabled:opacity-30"
           >

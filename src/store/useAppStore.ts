@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { AppSettings, Entry, Chapter } from '../types';
 import { buildBuiltInBookProgressKey } from '../types/books';
 import { UiLanguage } from '../i18n/ui';
+import { getPageIndexForEntry } from '../lib/pagination';
 
 const defaultSettings: AppSettings = {
   apiBase: '',
@@ -33,6 +34,7 @@ interface AppState {
   uiLanguage: UiLanguage;
   entries: Entry[];
   currentIndex: number;
+  readerPageIndex: number;
   isPlaying: boolean;
   autoNext: boolean;
   settings: AppSettings;
@@ -49,6 +51,7 @@ interface AppState {
   setUiLanguage: (uiLanguage: UiLanguage) => void;
   setEntries: (entries: Entry[]) => void;
   setCurrentIndex: (index: number) => void;
+  setReaderPageIndex: (pageIndex: number) => void;
   setIsPlaying: (playing: boolean) => void;
   setAutoNext: (autoNext: boolean) => void;
   updateSettings: (settings: Partial<AppSettings>) => void;
@@ -104,6 +107,7 @@ export const useAppStore = create<AppState>()(
       entries: [],
       uiLanguage: 'zh-CN',
       currentIndex: 0,
+      readerPageIndex: 0,
       isPlaying: false,
       autoNext: true,
       settings: defaultSettings,
@@ -118,8 +122,9 @@ export const useAppStore = create<AppState>()(
       lastOpenedBook: null,
 
       setUiLanguage: (uiLanguage) => set({ uiLanguage }),
-      setEntries: (entries) => set({ entries, currentIndex: 0, audioCache: {}, isFetching: {}, fetchErrors: {}, isPlaying: false, chapters: [] }),
-      setCurrentIndex: (currentIndex) => set({ currentIndex }),
+      setEntries: (entries) => set({ entries, currentIndex: 0, readerPageIndex: 0, audioCache: {}, isFetching: {}, fetchErrors: {}, isPlaying: false, chapters: [] }),
+      setCurrentIndex: (currentIndex) => set({ currentIndex, readerPageIndex: getPageIndexForEntry(currentIndex) }),
+      setReaderPageIndex: (readerPageIndex) => set({ readerPageIndex }),
       setIsPlaying: (isPlaying) => set({ isPlaying }),
       setAutoNext: (autoNext) => set({ autoNext }),
       updateSettings: (newSettings) => set((state) => ({ settings: { ...state.settings, ...newSettings } })),

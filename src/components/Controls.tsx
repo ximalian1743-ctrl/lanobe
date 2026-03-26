@@ -1,16 +1,40 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { LocateFixed, Play, Settings, SkipBack, SkipForward, Square, Volume2 } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  LocateFixed,
+  Play,
+  Settings,
+  SkipBack,
+  SkipForward,
+  Sparkles,
+  Square,
+  Volume2,
+} from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useUiText } from '../hooks/useUiText';
+import { clampPageIndex, getTotalPages } from '../lib/pagination';
 
 interface ControlsProps {
   onOpenSettings: () => void;
+  onOpenAi: () => void;
   returnTo?: string;
 }
 
-export function Controls({ onOpenSettings, returnTo }: ControlsProps) {
-  const { isPlaying, setIsPlaying, autoNext, entries, currentIndex, setCurrentIndex, triggerLocate } = useAppStore();
+export function Controls({ onOpenSettings, onOpenAi, returnTo }: ControlsProps) {
+  const {
+    isPlaying,
+    setIsPlaying,
+    autoNext,
+    entries,
+    currentIndex,
+    readerPageIndex,
+    setReaderPageIndex,
+    setCurrentIndex,
+    triggerLocate,
+    settings,
+  } = useAppStore();
   const { text } = useUiText();
 
   useEffect(() => {
@@ -36,9 +60,19 @@ export function Controls({ onOpenSettings, returnTo }: ControlsProps) {
   }, [currentIndex, entries.length, isPlaying, setCurrentIndex, setIsPlaying]);
 
   const canNavigate = entries.length > 0;
+  const totalPages = getTotalPages(entries.length);
+  const hasAiAssist = Boolean(settings.aiApiBase.trim() && settings.aiApiKey.trim() && settings.aiModel.trim());
+
+  const jumpPage = (delta: number) => {
+    if (!entries.length) return;
+    setReaderPageIndex(clampPageIndex(readerPageIndex + delta, entries.length));
+  };
 
   return (
-    <div className="border-t border-slate-800/80 bg-slate-900/95 p-2.5 shadow-[0_-10px_40px_rgba(0,0,0,0.4)] backdrop-blur-2xl md:p-3">
+    <div
+      data-testid="reader-controls-shell"
+      className="fixed inset-x-0 bottom-0 z-[60] border-t border-slate-800/80 bg-slate-900/95 px-2 pt-2.5 pb-[calc(env(safe-area-inset-bottom)+0.7rem)] shadow-[0_-14px_50px_rgba(0,0,0,0.46)] backdrop-blur-2xl md:px-3 md:pt-3"
+    >
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           {returnTo && (
@@ -52,14 +86,27 @@ export function Controls({ onOpenSettings, returnTo }: ControlsProps) {
 
           <div className="flex items-center gap-1 rounded-full border border-slate-800/70 bg-slate-950/65 p-1 shadow-inner">
             <button
+              type="button"
+              onClick={() => jumpPage(-1)}
+              className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white disabled:opacity-35"
+              title={text.controls.previousPage}
+              aria-label={text.controls.previousPage}
+              disabled={!canNavigate || readerPageIndex === 0}
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <button
+              type="button"
               onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
               className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white disabled:opacity-35"
               title={text.controls.previous}
+              aria-label={text.controls.previous}
               disabled={!canNavigate || currentIndex === 0}
             >
               <SkipBack size={18} />
             </button>
             <button
+              type="button"
               onClick={() => setIsPlaying(!isPlaying)}
               className={[
                 'flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold transition-all',
@@ -72,12 +119,24 @@ export function Controls({ onOpenSettings, returnTo }: ControlsProps) {
               <span>{isPlaying ? text.controls.stop : text.controls.play}</span>
             </button>
             <button
+              type="button"
               onClick={() => setCurrentIndex(Math.min(entries.length - 1, currentIndex + 1))}
               className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white disabled:opacity-35"
               title={text.controls.next}
+              aria-label={text.controls.next}
               disabled={!canNavigate || currentIndex >= entries.length - 1}
             >
               <SkipForward size={18} />
+            </button>
+            <button
+              type="button"
+              onClick={() => jumpPage(1)}
+              className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white disabled:opacity-35"
+              title={text.controls.nextPage}
+              aria-label={text.controls.nextPage}
+              disabled={!canNavigate || readerPageIndex >= totalPages - 1}
+            >
+              <ChevronRight size={18} />
             </button>
           </div>
         </div>
@@ -87,12 +146,30 @@ export function Controls({ onOpenSettings, returnTo }: ControlsProps) {
             {isPlaying && <Volume2 size={13} className="animate-pulse text-blue-400" />}
             {entries.length > 0 ? `${currentIndex + 1} / ${entries.length}` : '0 / 0'}
             <span className="text-slate-500">·</span>
+            {totalPages > 0 ? `${readerPageIndex + 1} / ${totalPages}` : '1 / 1'}
+            <span className="text-slate-500">·</span>
             <span className="text-slate-400">{autoNext ? text.controls.autoNextOn : text.controls.autoNextOff}</span>
           </div>
+          {hasAiAssist && (
+            <button
+              type="button"
+              onClick={onOpenAi}
+              data-testid="ai-explain-button"
+              className="inline-flex items-center gap-2 rounded-full border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-amber-100 transition-colors hover:border-amber-300/45 hover:bg-amber-500/15 disabled:opacity-35"
+              disabled={!canNavigate}
+              title={text.controls.aiExplain}
+              aria-label={text.controls.aiExplain}
+            >
+              <Sparkles size={14} />
+              AI
+            </button>
+          )}
           <button
+            type="button"
             onClick={triggerLocate}
             className="rounded-full border border-slate-700/50 bg-slate-800/50 p-2.5 text-blue-400 shadow-sm transition-all hover:bg-slate-700 hover:text-blue-300 disabled:opacity-35"
             title={text.controls.locateAction}
+            aria-label={text.controls.locateAction}
             disabled={!canNavigate}
           >
             <LocateFixed size={18} />

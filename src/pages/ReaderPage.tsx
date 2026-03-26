@@ -233,36 +233,10 @@ export function ReaderPage() {
 
   return (
     <>
-      <div className="relative">
-        <div className="pointer-events-none fixed left-4 right-4 top-4 z-[65] md:left-6 md:right-6">
-          <div className="pointer-events-auto flex items-center justify-between gap-3 rounded-[22px] border border-stone-700/80 bg-stone-950/82 px-4 py-3 shadow-2xl shadow-black/35 backdrop-blur-md">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <Link
-                  to="/lanobe/bookshelf"
-                  className="inline-flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-stone-100 transition-colors hover:border-stone-500"
-                >
-                  <ArrowLeft size={14} />
-                  {text.common.backToBookshelf}
-                </Link>
-                <div className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200/90">
-                  {text.reader.savedStatus}
-                </div>
-              </div>
-              <h1 className="mt-2 truncate text-sm font-bold tracking-tight text-stone-100 md:text-base">{localizedMeta.title}</h1>
-            </div>
-            <div className="rounded-full border border-stone-700/80 bg-stone-900/80 px-3 py-2 text-xs uppercase tracking-[0.22em] text-orange-200/85">
-              {selectedVolume.label}
-            </div>
-          </div>
-        </div>
-
-        <ReaderExperience
-          showHeader={false}
-          topInsetClassName="pt-20 md:pt-24"
-          returnTo="/lanobe/bookshelf"
-        />
-      </div>
+      <ReaderExperience
+        showHeader={false}
+        returnTo="/lanobe/bookshelf"
+      />
 
       {showGuide && (
         <GuideModal

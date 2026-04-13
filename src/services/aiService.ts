@@ -1,5 +1,6 @@
 import { UiLanguage } from '../i18n/ui';
 import { Entry } from '../types';
+import { formatBracketReadingsAsParen } from '../lib/textCleanup';
 
 export interface EntryExplanation {
   overview: string;
@@ -12,10 +13,6 @@ export interface EntryExplanation {
 
 function cleanJapaneseText(text: string) {
   return text.replace(/\[[^\]]+\]/g, '').trim();
-}
-
-function formatReadingGuide(text: string) {
-  return text.replace(/\[([^\]]+)\]/g, '（$1）').trim();
 }
 
 function getAiProxyUrl(backendApiBase: string = '') {
@@ -294,7 +291,7 @@ Focus order:
   return {
     overview: parsed.overview || '',
     translation: parsed.translation || entry.ch || '',
-    readingGuide: parsed.readingGuide || formatReadingGuide(entry.jp || currentJp),
+    readingGuide: parsed.readingGuide || formatBracketReadingsAsParen(entry.jp || currentJp),
     grammarPoints: Array.isArray(parsed.grammarPoints) ? parsed.grammarPoints.slice(0, 3) : [],
     wordBreakdown:
       Array.isArray(parsed.wordBreakdown) && parsed.wordBreakdown.length

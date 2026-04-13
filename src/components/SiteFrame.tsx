@@ -26,7 +26,7 @@ export function SiteFrame({ eyebrow, title, description, children }: SiteFramePr
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div>
               <Link to="/" className="text-xs uppercase tracking-[0.35em] text-orange-300/80">
-                ximalian.cc.cd
+                Lanobe
               </Link>
               <h1 className="mt-2 text-2xl font-black tracking-tight text-stone-100 md:text-4xl">{title}</h1>
               <p className="mt-2 max-w-2xl text-sm text-stone-300/85 md:text-base">{description}</p>

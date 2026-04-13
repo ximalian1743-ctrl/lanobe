@@ -1,4 +1,4 @@
-# Deploy Guide (`ximalian.cc.cd`)
+# Lanobe Deploy Guide (`ximalian.cc.cd`)
 
 This project now uses:
 
@@ -28,6 +28,7 @@ Use this release flow for normal development:
 
 The local verification command runs:
 
+- Unit tests
 - TypeScript check
 - Production build
 - Smoke test

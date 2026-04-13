@@ -1,17 +1,20 @@
 {
-  "name": "react-example",
+  "name": "lanobe",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Lanobe is a full-stack Japanese novel reader and listening shelf.",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build",
     "preview": "vite preview",
-    "clean": "rm -rf dist",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "test:unit": "tsx --test tests/unit/textCleanup.test.ts",
+    "test:e2e": "playwright test",
     "validate:books": "tsx scripts/validate-built-in-books.mjs",
     "lint": "tsc --noEmit",
     "start": "tsx server.ts",
-    "test:local": "npm run validate:books && npm run lint && npm run build && node scripts/smoke-test.mjs"
+    "test:local": "npm run test:unit && npm run validate:books && npm run lint && npm run build && node scripts/smoke-test.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

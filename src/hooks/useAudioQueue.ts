@@ -1,6 +1,7 @@
 import { useEffect, useRef, type MutableRefObject } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { AppSettings, Entry } from '../types';
+import { cleanWordJapaneseText, stripBracketReadings } from '../lib/textCleanup';
 
 interface PlaylistItem {
   type: 'tts' | 'pause';
@@ -144,7 +145,7 @@ function generatePlaylist(entry: Entry, settings: AppSettings): PlaylistItem[] {
   };
 
   const addTts = (text: string, voice: string, rate: number) => {
-    const cleaned = text.replace(/\[[^\]]+\]/g, '').trim();
+    const cleaned = stripBracketReadings(text);
     if (cleaned) playlist.push({ type: 'tts', text: cleaned, voice, rate });
   };
 
@@ -158,7 +159,7 @@ function generatePlaylist(entry: Entry, settings: AppSettings): PlaylistItem[] {
       added = true;
     } else if (token === 'word_jp') {
       entry.words.forEach((word, index) => {
-        const jpText = word[0].replace(/[锛?][^)锛塢+[)锛塢/g, '').replace(/\[[^\]]+\]/g, '').trim();
+        const jpText = cleanWordJapaneseText(word[0]);
         if (jpText) {
           if (index > 0) addPause(settings.pauseBetweenWordsMs);
           addTts(jpText, settings.jpVoice, settings.jpRate);
@@ -175,7 +176,7 @@ function generatePlaylist(entry: Entry, settings: AppSettings): PlaylistItem[] {
       });
     } else if (token === 'word_pair') {
       entry.words.forEach((word, index) => {
-        const jpText = word[0].replace(/[锛?][^)锛塢+[)锛塢/g, '').replace(/\[[^\]]+\]/g, '').trim();
+        const jpText = cleanWordJapaneseText(word[0]);
         const chText = word[1].trim();
         if (jpText || chText) {
           if (index > 0) addPause(settings.pauseBetweenWordsMs);

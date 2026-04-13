@@ -1,11 +1,19 @@
-# Gemini Lanobe
+# Lanobe
 
-This is a full-stack app:
+Lanobe is a full-stack Japanese novel reader and listening shelf.
+
+Core stack:
 
 - Frontend: `Vite + React`
 - Backend: `Express` in `server.ts` (`/health`, `/api/tts-batch`, `/api/ai-chat`)
 
 Because it depends on backend APIs, static-only hosting (for example, only GitHub Pages) will not provide full functionality.
+
+## Docs
+
+- Project structure: [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md)
+- Deployment guide: [`docs/deployment/DEPLOY.md`](docs/deployment/DEPLOY.md)
+- Archived product notes: [`docs/archive/`](docs/archive)
 
 ## Local Development
 
@@ -43,6 +51,7 @@ npm run test:local
 
 This command runs:
 
+- Unit tests
 - Type check
 - Production build
 - Starts server in production mode
@@ -64,7 +73,7 @@ SMOKE_PORT=5000 SMOKE_TIMEOUT_MS=60000 npm run test:local
 Recommended flow:
 
 1. Push this project to GitHub
-2. Deploy from GitHub on a Node-capable platform (Render, Railway, Fly.io, etc.)
+2. Deploy from GitHub on the current Node-capable hosting target
 3. Attach custom domain `ximalian.cc.cd` in the deploy platform
 4. Add DNS CNAME in your DNS provider to the platform target host
 

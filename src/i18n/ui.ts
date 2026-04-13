@@ -56,7 +56,7 @@ const copy = {
     },
     home: {
       eyebrow: '站点导航',
-      title: '这是 ximalian.cc.cd 的个人入口站，Lanobe 是第一个真正成型的产品。',
+      title: 'Lanobe 是一个面向日文轻小说的阅读与听书入口。',
       description: '首页现在负责承接整个站点，并把当前听书阅读器包装成一个真正可进入、可理解、可继续使用的产品流程。',
       focusLabel: '当前重点',
       heroTitle: '先把阅读器做成一个真正的网站产品，再继续堆功能。',
@@ -260,7 +260,7 @@ const copy = {
     siteFrame: { navEyebrow: 'サイト案内' },
     home: {
       eyebrow: 'サイト案内',
-      title: 'ximalian.cc.cd の個人ハブとして、Lanobe が最初の実用プロダクトになりました。',
+      title: 'Lanobe は日本語ライトノベルの読書・聴書ハブです。',
       description: 'ホームページはサイト全体の入口として動作し、既存の読書エンジンを分かりやすい製品フローにまとめます。',
       focusLabel: '現在の焦点',
       heroTitle: 'まずは読書エンジンを、ちゃんと入れるプロダクトに整える。',
@@ -464,7 +464,7 @@ const copy = {
     siteFrame: { navEyebrow: 'Site Navigation' },
     home: {
       eyebrow: 'Site Navigation',
-      title: 'This is the personal hub for ximalian.cc.cd, with Lanobe as the first living product.',
+      title: 'Lanobe is a reading and listening hub for Japanese light novels.',
       description: 'The homepage now acts as the site-wide entry layer and wraps the existing reader into a clearer product journey.',
       focusLabel: 'Current Focus',
       heroTitle: 'Turn the reader into a product people can enter, understand, and keep using.',

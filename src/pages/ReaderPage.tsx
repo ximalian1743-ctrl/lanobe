@@ -188,7 +188,11 @@ export function ReaderPage() {
 
   useEffect(() => {
     const previousTitle = document.title;
-    document.title = localizedMeta ? `${localizedMeta.title} - ${selectedVolume?.label ?? 'Reader'}` : slug ? `Lanobe Reader - ${slug}` : 'Lanobe Reader';
+    document.title = localizedMeta
+      ? `Lanobe | ${localizedMeta.title} · ${selectedVolume?.label ?? 'Reader'}`
+      : slug
+        ? `Lanobe | Reader · ${slug}`
+        : 'Lanobe | Reader';
     return () => {
       document.title = previousTitle;
     };

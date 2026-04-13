@@ -31,7 +31,7 @@ test('bookshelf volume selection leads to fixed reader controls with page naviga
     uiLanguage: 'en-US',
   });
 
-  await page.goto('http://127.0.0.1:4173/lanobe/bookshelf');
+  await page.goto('/lanobe/bookshelf');
 
   const bookCard = page.locator('article').first();
   await expect(bookCard.getByText('Choose a volume before entering')).toBeVisible();
@@ -60,7 +60,7 @@ test('mobile reader keeps the persistent background audio element mounted', asyn
     uiLanguage: 'en-US',
   });
 
-  await page.goto('http://127.0.0.1:4173/lanobe/book/makeine-too-many-heroines?volume=volume-01');
+  await page.goto('/lanobe/book/makeine-too-many-heroines?volume=volume-01');
   await page.waitForURL(/volume=volume-01/);
 
   const backgroundAudio = page.locator('#lanobe-background-audio');
@@ -93,7 +93,7 @@ test('configured AI button opens the explanation modal and renders the response'
               content: JSON.stringify({
                 overview: 'The speaker is softening the statement and relying on shared context.',
                 translation: 'A natural translation for the current line.',
-                readingGuide: '負け（まけ）ヒロインが多すぎる。',
+                readingGuide: 'makeine (reading guide)',
                 grammarPoints: [
                   {
                     title: 'Soft sentence ending',
@@ -102,8 +102,8 @@ test('configured AI button opens the explanation modal and renders the response'
                 ],
                 wordBreakdown: [
                   {
-                    term: '負け',
-                    reading: 'まけ',
+                    term: 'makeine',
+                    reading: 'reading',
                     meaning: 'loss / losing',
                     role: 'core noun',
                   },
@@ -117,7 +117,7 @@ test('configured AI button opens the explanation modal and renders the response'
     });
   });
 
-  await page.goto('http://127.0.0.1:4173/lanobe/book/makeine-too-many-heroines?volume=volume-01');
+  await page.goto('/lanobe/book/makeine-too-many-heroines?volume=volume-01');
   await page.waitForURL(/volume=volume-01/);
 
   await expect(page.getByTestId('ai-explain-button')).toBeVisible();

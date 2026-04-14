@@ -1,5 +1,6 @@
-﻿import { Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { BookOpenText, Headphones, LayoutTemplate } from 'lucide-react';
+import { motion } from 'motion/react';
 import { SiteFrame } from '../components/SiteFrame';
 import { useUiText } from '../hooks/useUiText';
 
@@ -31,7 +32,13 @@ export function LanobeLandingPage() {
       description={text.landing.description}
     >
       <main className="grid gap-6 md:grid-cols-[1.2fr_1fr]">
-        <section className="rounded-[32px] border border-stone-800/80 bg-stone-950/55 p-6 md:p-8">
+        {/* Hero */}
+        <motion.section
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.38, ease: 'easeOut' }}
+          className="rounded-[32px] border border-stone-800/80 bg-stone-950/55 p-6 md:p-8"
+        >
           <h2 className="text-2xl font-black tracking-tight text-stone-100 md:text-4xl">
             {text.landing.heroTitle}
           </h2>
@@ -50,19 +57,25 @@ export function LanobeLandingPage() {
               {text.landing.openVolumeOne}
             </Link>
           </div>
-        </section>
+        </motion.section>
 
+        {/* Feature cards */}
         <section className="grid gap-4">
-          {features.map(({ title, description, icon: Icon }) => (
-            <article key={title} className="rounded-[28px] border border-stone-800/80 bg-stone-950/55 p-5">
+          {features.map(({ title, description, icon: Icon }, i) => (
+            <motion.article
+              key={title}
+              initial={{ opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.35, delay: 0.12 + i * 0.08, ease: 'easeOut' }}
+              className="rounded-[28px] border border-stone-800/80 bg-stone-950/55 p-5"
+            >
               <Icon size={18} className="text-orange-300" />
               <h3 className="mt-4 text-lg font-bold text-stone-100">{title}</h3>
               <p className="mt-2 text-sm leading-6 text-stone-300/85">{description}</p>
-            </article>
+            </motion.article>
           ))}
         </section>
       </main>
     </SiteFrame>
   );
 }
-

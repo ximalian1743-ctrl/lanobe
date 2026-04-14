@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { LocateFixed, Search, Settings2, SlidersHorizontal, Target, Wand2, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useAppStore } from '../store/useAppStore';
 import { useUiText } from '../hooks/useUiText';
 import { LanguageSwitcher } from './LanguageSwitcher';
@@ -146,6 +147,14 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
+          <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={tab}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.18, ease: 'easeInOut' }}
+          >
           {tab === 'quick' && (
             <div className="grid gap-5 lg:grid-cols-[1.4fr_0.6fr]">
               <section className={panelClass}>
@@ -347,6 +356,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               </section>
             </div>
           )}
+          </motion.div>
+          </AnimatePresence>
         </div>
       </div>
     </div>

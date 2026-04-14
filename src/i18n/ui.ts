@@ -236,6 +236,18 @@ const copy = {
       words: '词汇拆解',
       teaching: '教学讲解',
     },
+    txtUpload: {
+      cardTitle: '自定义 TXT 阅读',
+      cardDescription: '上传自己的 TXT 文件，按日中双语格式排版，可以听书与阅读。',
+      cardButton: '打开自由阅读器',
+      panelTitle: '上传 TXT 文件开始阅读',
+      panelDescription: '支持日中双语格式 TXT，也可以只有日文。上传后可以播放、跳转和 AI 讲解。',
+      uploadButton: '选择 TXT 文件',
+      dragHint: '或直接拖放 TXT 文件到阅读区域',
+      formatTitle: 'TXT 格式说明（点击复制模板）',
+      copyButton: '复制模板',
+      copied: '已复制',
+    },
   },
   'ja-JP': {
     common: {
@@ -440,6 +452,18 @@ const copy = {
       words: '語彙分解',
       teaching: '学習向け解説',
     },
+    txtUpload: {
+      cardTitle: '自分の TXT を読む',
+      cardDescription: '自分の TXT ファイルをアップロードして、聴書・読書できます。',
+      cardButton: 'フリーリーダーを開く',
+      panelTitle: 'TXT ファイルを開いて読み始める',
+      panelDescription: '日中バイリンガル形式または日本語のみの TXT に対応。アップロード後は再生・ジャンプ・AI 解説が使えます。',
+      uploadButton: 'TXT ファイルを選択',
+      dragHint: 'または TXT ファイルをここへドラッグ＆ドロップ',
+      formatTitle: 'TXT フォーマット（クリックでテンプレートをコピー）',
+      copyButton: 'コピー',
+      copied: 'コピー済み',
+    },
   },
   'en-US': {
     common: {
@@ -643,6 +667,18 @@ const copy = {
       grammar: 'Grammar analysis',
       words: 'Vocabulary breakdown',
       teaching: 'Teaching note',
+    },
+    txtUpload: {
+      cardTitle: 'Read Your Own TXT',
+      cardDescription: 'Upload any TXT file in bilingual or Japanese-only format. Play, jump, and get AI explanations.',
+      cardButton: 'Open Free Reader',
+      panelTitle: 'Upload a TXT file to start reading',
+      panelDescription: 'Supports JP/ZH bilingual format or Japanese-only. After uploading, playback, jump, and AI explanation are all available.',
+      uploadButton: 'Choose TXT File',
+      dragHint: 'Or drag and drop a TXT file onto the reader',
+      formatTitle: 'TXT format guide (click to copy template)',
+      copyButton: 'Copy template',
+      copied: 'Copied!',
     },
   },
 } as const;

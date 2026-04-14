@@ -1,12 +1,31 @@
 # Progress
 
-## Task
+---
+
+## Session — 2026-04-15
+
+### Goal
+Full maintenance + UI upgrade pass, plus TXT upload feature.
+
+### Status: completed
+
+### Changes
+- Removed stale `render.yaml` (project now fully on Azure / GitHub Actions)
+- Added `docs/archive/makeine-raw/` gitignore note (raw sources stay local)
+- Added **TXT Upload** feature: bookshelf card → `/lanobe/reader` free reader page with file picker + format guide (click-to-copy template)
+- Added tri-lingual i18n for TXT upload UI (`zh-CN`, `ja-JP`, `en-US`)
+- UI upgrade: stagger entrance animations on bookshelf cards, skeleton loading state, SiteFrame header fade-in, SettingsModal tab transitions, EntryList page fade, polished drag overlay
+- All changes pass `npm run test:local`
+
+---
+
+## Task (archived — ongoing)
 - Name: Makeine TXT migration
 - Goal: Migrate `public/books/makeine-too-many-heroines/volumes/volume-01.txt` ~ `volume-08.txt` to the new `ja:` / `zh:` / `word:` / `pause:` format with improved per-sentence translation alignment, furigana cleanup, and standardized character-name readings.
 
-## Current status
+## Status (paused)
 - Phase: 2 - review `volume-01`, then continue `volume-02`
-- State: in-progress
+- State: paused (unblocked, resume when content migration is next priority)
 - Owner: 小西
 - Last updated: 2026-03-26 01:23 JST
 

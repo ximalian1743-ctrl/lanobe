@@ -5,6 +5,7 @@ import { Controls } from '../../components/Controls';
 import { EntryList } from '../../components/EntryList';
 import { Header } from '../../components/Header';
 import { SettingsModal } from '../../components/SettingsModal';
+import { TxtUploadPanel } from '../../components/TxtUploadPanel';
 import { useAudioQueue } from '../../hooks/useAudioQueue';
 import { useLoadContent } from '../../hooks/useLoadContent';
 import { useAppStore } from '../../store/useAppStore';
@@ -13,13 +14,14 @@ import { useUiText } from '../../hooks/useUiText';
 interface ReaderExperienceProps {
   showHeader?: boolean;
   returnTo?: string;
+  showEmptyUpload?: boolean;
 }
 
-export function ReaderExperience({ showHeader = true, returnTo }: ReaderExperienceProps) {
+export function ReaderExperience({ showHeader = true, returnTo, showEmptyUpload = false }: ReaderExperienceProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [showAiExplain, setShowAiExplain] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const { isGeneratingChapters, setIsPlaying } = useAppStore();
+  const { isGeneratingChapters, setIsPlaying, entries } = useAppStore();
   const { loadContent } = useLoadContent();
   const { text } = useUiText();
 
@@ -65,13 +67,13 @@ export function ReaderExperience({ showHeader = true, returnTo }: ReaderExperien
       onDrop={handleDrop}
     >
       {isDragging && (
-        <div className="absolute inset-0 z-[70] m-4 flex flex-col items-center justify-center rounded-3xl border-4 border-dashed border-blue-500/50 bg-slate-950/80 backdrop-blur-md transition-all duration-300">
-          <div className="scale-110 text-center transition-transform duration-300">
-            <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-blue-500/20 shadow-[0_0_40px_rgba(59,130,246,0.3)]">
-              <UploadCloud size={48} className="animate-bounce text-blue-400" />
+        <div className="absolute inset-0 z-[70] m-3 flex flex-col items-center justify-center rounded-[28px] border-2 border-dashed border-blue-400/70 bg-slate-950/88 backdrop-blur-md">
+          <div className="text-center">
+            <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border border-blue-400/30 bg-blue-500/20 shadow-[0_0_48px_rgba(59,130,246,0.35)]">
+              <UploadCloud size={40} className="text-blue-300" />
             </div>
-            <h2 className="mb-3 text-3xl font-bold tracking-tight text-white">{text.reader.dropTitle}</h2>
-            <p className="text-lg text-blue-200/80">{text.reader.dropHint}</p>
+            <h2 className="mb-2 text-2xl font-bold tracking-tight text-white">{text.reader.dropTitle}</h2>
+            <p className="text-base text-blue-200/75">{text.reader.dropHint}</p>
           </div>
         </div>
       )}
@@ -87,7 +89,11 @@ export function ReaderExperience({ showHeader = true, returnTo }: ReaderExperien
       <div className="flex-1 overflow-y-auto pb-[calc(env(safe-area-inset-bottom)+8.75rem)] md:pb-[calc(env(safe-area-inset-bottom)+9.5rem)]">
         <div className="mx-auto max-w-5xl p-4 md:p-5 lg:p-6">
           {showHeader ? <Header onOpenSettings={() => setShowSettings(true)} onOpenChapters={() => undefined} /> : null}
-          {!isGeneratingChapters && <EntryList />}
+          {!isGeneratingChapters && (
+            showEmptyUpload && entries.length === 0
+              ? <TxtUploadPanel />
+              : <EntryList />
+          )}
         </div>
       </div>
 

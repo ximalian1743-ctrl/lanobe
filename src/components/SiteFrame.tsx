@@ -1,5 +1,6 @@
 ﻿import type { ReactNode } from 'react';
 import { Link, NavLink } from 'react-router-dom';
+import { motion } from 'motion/react';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { useUiText } from '../hooks/useUiText';
 
@@ -22,7 +23,12 @@ export function SiteFrame({ eyebrow, title, description, children }: SiteFramePr
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(251,146,60,0.2),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(45,212,191,0.14),_transparent_32%),linear-gradient(180deg,_#11100d_0%,_#171512_52%,_#0d0c0a_100%)] text-stone-100">
       <div className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-8">
-        <header className="mb-8 rounded-[28px] border border-stone-800/80 bg-stone-950/60 px-5 py-4 backdrop-blur-xl md:px-6 md:py-5">
+        <motion.header
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: 'easeOut' }}
+          className="mb-8 rounded-[28px] border border-stone-800/80 bg-stone-950/60 px-5 py-4 backdrop-blur-xl md:px-6 md:py-5"
+        >
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div>
               <Link to="/" className="text-xs uppercase tracking-[0.35em] text-orange-300/80">
@@ -49,7 +55,7 @@ export function SiteFrame({ eyebrow, title, description, children }: SiteFramePr
           <div className="mt-5 inline-flex items-center rounded-full border border-orange-400/30 bg-orange-500/10 px-3 py-1 text-xs uppercase tracking-[0.25em] text-orange-200/90">
             {eyebrow}
           </div>
-        </header>
+        </motion.header>
 
         {children}
       </div>

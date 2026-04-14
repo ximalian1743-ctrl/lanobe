@@ -1,5 +1,6 @@
 import React, { memo, useEffect, useMemo, useRef } from 'react';
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Volume2 } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useAppStore } from '../store/useAppStore';
 import { AppSettings, Entry } from '../types';
 import { cn } from '../lib/utils';
@@ -190,20 +191,29 @@ export function EntryList() {
         </div>
       )}
 
-      <ul className={compact ? 'space-y-3' : 'space-y-4'}>
-        {currentEntries.map(({ entry, originalIndex }) => (
-          <EntryItem
-            key={entry.id}
-            entry={entry}
-            originalIndex={originalIndex}
-            isActive={originalIndex === currentIndex}
-            isPlaying={isPlaying}
-            settings={settings}
-            onSelect={setCurrentIndex}
-            activeRef={originalIndex === currentIndex ? activeRef : null}
-          />
-        ))}
-      </ul>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.ul
+          key={currentPage}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18, ease: 'easeInOut' }}
+          className={compact ? 'space-y-3' : 'space-y-4'}
+        >
+          {currentEntries.map(({ entry, originalIndex }) => (
+            <EntryItem
+              key={entry.id}
+              entry={entry}
+              originalIndex={originalIndex}
+              isActive={originalIndex === currentIndex}
+              isPlaying={isPlaying}
+              settings={settings}
+              onSelect={setCurrentIndex}
+              activeRef={originalIndex === currentIndex ? activeRef : null}
+            />
+          ))}
+        </motion.ul>
+      </AnimatePresence>
     </div>
   );
 }

@@ -12,7 +12,21 @@ import { useAppStore } from './store/useAppStore';
 function ThemeApplier() {
   const theme = useAppStore((s) => s.settings.theme);
   useEffect(() => {
-    document.documentElement.dataset.theme = theme ?? 'dark';
+    const applied: 'dark' | 'light' | 'sepia' =
+      theme === 'auto'
+        ? window.matchMedia('(prefers-color-scheme: light)').matches
+          ? 'light'
+          : 'dark'
+        : (theme ?? 'dark');
+    document.documentElement.dataset.theme = applied;
+
+    if (theme !== 'auto') return;
+    const mq = window.matchMedia('(prefers-color-scheme: light)');
+    function onChange() {
+      document.documentElement.dataset.theme = mq.matches ? 'light' : 'dark';
+    }
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
   }, [theme]);
   return null;
 }

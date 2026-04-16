@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, UploadCloud } from 'lucide-react';
 import { AiExplainModal } from '../../components/AiExplainModal';
-import { Controls } from '../../components/Controls';
 import { EntryList } from '../../components/EntryList';
 import { Header } from '../../components/Header';
 import { SettingsModal } from '../../components/SettingsModal';
@@ -12,6 +11,7 @@ import { BatchProgressBanner } from '../../components/BatchProgressBanner';
 import { NoteEditorModal } from '../../components/NoteEditorModal';
 import { WordLookupSheet } from '../../components/WordLookupSheet';
 import { ChaptersModal } from '../../components/ChaptersModal';
+import { MiniPlayer } from '../../components/MiniPlayer';
 import { useToast } from '../../components/Toast';
 import { useAudioQueue } from '../../hooks/useAudioQueue';
 import { useLoadContent } from '../../hooks/useLoadContent';
@@ -39,13 +39,16 @@ export function ReaderExperience({
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showChapters, setShowChapters] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [chromeHidden, setChromeHidden] = useState(false);
   const [noteEntryIdx, setNoteEntryIdx] = useState<number | null>(null);
   const [lookupWord, setLookupWord] = useState<string | null>(null);
   const {
     isGeneratingChapters,
     setIsPlaying,
+    isPlaying,
     entries,
     currentIndex,
+    setCurrentIndex,
     isFetching,
     audioCache,
     settings,
@@ -57,15 +60,18 @@ export function ReaderExperience({
   useAudioQueue();
   useReadingTimer(slug, volumeId);
 
-  // Apply theme to <html>
+  // Apply theme
   useEffect(() => {
-    document.documentElement.dataset.theme = settings.theme ?? 'dark';
-    return () => {
-      // on unmount keep theme to avoid flashing on navigation
-    };
+    const applied: 'dark' | 'light' | 'sepia' =
+      settings.theme === 'auto'
+        ? window.matchMedia('(prefers-color-scheme: light)').matches
+          ? 'light'
+          : 'dark'
+        : (settings.theme ?? 'dark');
+    document.documentElement.dataset.theme = applied;
   }, [settings.theme]);
 
-  // Audio state toast — only announce when fetch takes > 800ms (skip cache hits)
+  // Audio toast — only > 800ms fetches
   const lastAudioState = useRef<'idle' | 'fetching' | 'ready'>('idle');
   const audioToastTimer = useRef<number | null>(null);
   useEffect(() => {
@@ -77,15 +83,12 @@ export function ReaderExperience({
     const ready = !!audioCache[currentIndex];
     const prev = lastAudioState.current;
     const next: 'idle' | 'fetching' | 'ready' = fetching ? 'fetching' : ready ? 'ready' : 'idle';
-
-    // Only toast when fetching drags past threshold — avoids noise on cached entries
     if (audioToastTimer.current) {
       window.clearTimeout(audioToastTimer.current);
       audioToastTimer.current = null;
     }
     if (next === 'fetching' && prev !== 'fetching') {
       audioToastTimer.current = window.setTimeout(() => {
-        // Re-check state at fire time; maybe it resolved
         const s = useAppStore.getState();
         if (s.isFetching[currentIndex]) toast('正在生成音频…', 'info');
       }, 800);
@@ -94,16 +97,66 @@ export function ReaderExperience({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, isFetching[currentIndex], audioCache[currentIndex]]);
 
+  // Immersive scroll: hide chrome when scrolling down, show when scrolling up
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const lastScrollTop = useRef(0);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let ticking = false;
+    function onScroll() {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const current = el!.scrollTop;
+        const delta = current - lastScrollTop.current;
+        if (Math.abs(delta) > 6) {
+          if (delta > 0 && current > 120) setChromeHidden(true);
+          else if (delta < 0) setChromeHidden(false);
+          lastScrollTop.current = current;
+        }
+        ticking = false;
+      });
+    }
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // Double-tap on reader area: play/pause, and left/right half = prev/next
+  const lastTapAt = useRef(0);
+  const handleDoubleTap = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      // Ignore double-taps that started on interactive elements (buttons, inputs)
+      const target = e.target as HTMLElement;
+      if (target.closest('button, a, input, select, textarea, [role="button"]')) return;
+      const now = performance.now();
+      if (now - lastTapAt.current < 300) {
+        // Second tap — decide action by horizontal third
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const ratio = (e.clientX - rect.left) / rect.width;
+        if (ratio < 0.33) {
+          setCurrentIndex(Math.max(0, currentIndex - 1));
+        } else if (ratio > 0.67) {
+          setCurrentIndex(Math.min(entries.length - 1, currentIndex + 1));
+        } else {
+          setIsPlaying(!isPlaying);
+        }
+        lastTapAt.current = 0;
+      } else {
+        lastTapAt.current = now;
+      }
+    },
+    [currentIndex, entries.length, isPlaying, setCurrentIndex, setIsPlaying],
+  );
+
   const handleDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
     setIsDragging(true);
   }, []);
-
   const handleDragLeave = useCallback((event: React.DragEvent) => {
     event.preventDefault();
     setIsDragging(false);
   }, []);
-
   const handleDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault();
@@ -158,13 +211,27 @@ export function ReaderExperience({
       )}
 
       <BatchProgressBanner />
+
       {entries.length > 0 && (
-        <ReaderTopBar returnTo={returnTo} onOpenBookmarks={() => setShowBookmarks(true)} />
+        <div
+          className={[
+            'transition-transform duration-300',
+            chromeHidden ? '-translate-y-full' : 'translate-y-0',
+          ].join(' ')}
+        >
+          <ReaderTopBar returnTo={returnTo} onOpenBookmarks={() => setShowBookmarks(true)} />
+        </div>
       )}
 
-      <div className="flex-1 overflow-y-auto pb-[calc(env(safe-area-inset-bottom)+8.75rem)] md:pb-[calc(env(safe-area-inset-bottom)+9.5rem)]">
-        <div className="mx-auto max-w-5xl p-4 md:p-5 lg:p-6">
-          {showHeader ? <Header onOpenSettings={() => setShowSettings(true)} onOpenChapters={() => setShowChapters(true)} /> : null}
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto"
+        onClick={handleDoubleTap}
+      >
+        <div className="mx-auto max-w-5xl p-4 pb-32 md:p-5 lg:p-6">
+          {showHeader ? (
+            <Header onOpenSettings={() => setShowSettings(true)} onOpenChapters={() => setShowChapters(true)} />
+          ) : null}
           {!isGeneratingChapters &&
             (showEmptyUpload && entries.length === 0 ? (
               <TxtUploadPanel />
@@ -178,23 +245,17 @@ export function ReaderExperience({
         </div>
       </div>
 
-      <Controls
+      {/* Floating mini-player replaces the old permanent Controls bar */}
+      <MiniPlayer
+        hidden={entries.length === 0}
         onOpenSettings={() => setShowSettings(true)}
         onOpenAi={handleOpenAiExplain}
-        returnTo={returnTo}
+        onOpenChapters={() => setShowChapters(true)}
       />
 
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
-      {showAiExplain && (
-        <AiExplainModal
-          onClose={() => setShowAiExplain(false)}
-          slug={slug}
-          volumeId={volumeId}
-        />
-      )}
-      {showBookmarks && (
-        <BookmarksModal slug={slug} volumeId={volumeId} onClose={() => setShowBookmarks(false)} />
-      )}
+      {showAiExplain && <AiExplainModal onClose={() => setShowAiExplain(false)} slug={slug} volumeId={volumeId} />}
+      {showBookmarks && <BookmarksModal slug={slug} volumeId={volumeId} onClose={() => setShowBookmarks(false)} />}
       {showChapters && (
         <ChaptersModal slug={slug} volumeId={volumeId} onClose={() => setShowChapters(false)} />
       )}

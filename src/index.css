@@ -101,6 +101,16 @@ html[data-theme='sepia'] .text-slate-500 {
   to   { opacity: 0; transform: translateY(8px); }
 }
 
+@keyframes sheetIn {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes drawerIn {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
 /* Ruby tag styling — keep readings visually aligned */
 ruby rt {
   font-size: 0.55em;

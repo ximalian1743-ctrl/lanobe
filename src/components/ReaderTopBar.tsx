@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react';
-import { ALargeSmall, Bookmark, BookOpen, Moon, Sun, Type } from 'lucide-react';
+import { ALargeSmall, Bookmark, BookOpen, Moon, MonitorSmartphone, Sun, Type } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { Theme } from '../types';
 
@@ -8,7 +8,7 @@ interface ReaderTopBarProps {
   onOpenBookmarks?: () => void;
 }
 
-const THEME_CYCLE: Theme[] = ['dark', 'sepia', 'light'];
+const THEME_CYCLE: Theme[] = ['dark', 'sepia', 'light', 'auto'];
 
 export function ReaderTopBar({ returnTo, onOpenBookmarks }: ReaderTopBarProps) {
   const entries = useAppStore((s) => s.entries);
@@ -54,7 +54,22 @@ export function ReaderTopBar({ returnTo, onOpenBookmarks }: ReaderTopBarProps) {
     updateSettings({ theme: next });
   }
 
-  const ThemeIcon = settings.theme === 'dark' ? Moon : settings.theme === 'light' ? Sun : BookOpen;
+  const ThemeIcon =
+    settings.theme === 'dark'
+      ? Moon
+      : settings.theme === 'light'
+        ? Sun
+        : settings.theme === 'auto'
+          ? MonitorSmartphone
+          : BookOpen;
+  const themeLabel =
+    settings.theme === 'dark'
+      ? '深色'
+      : settings.theme === 'light'
+        ? '浅色'
+        : settings.theme === 'auto'
+          ? '跟随系统'
+          : '护眼';
 
   return (
     <div className="sticky top-0 z-40 border-b border-slate-800/70 bg-slate-950/92 px-3 py-2 backdrop-blur-md">
@@ -107,7 +122,7 @@ export function ReaderTopBar({ returnTo, onOpenBookmarks }: ReaderTopBarProps) {
               type="button"
               onClick={cycleTheme}
               className="flex h-7 w-7 items-center justify-center rounded-full text-slate-300 hover:bg-slate-800"
-              title={`当前：${settings.theme === 'dark' ? '深色' : settings.theme === 'light' ? '浅色' : '护眼'}（点击切换）`}
+              title={`当前：${themeLabel}（点击切换）`}
             >
               <ThemeIcon size={15} />
             </button>
@@ -136,11 +151,21 @@ export function ReaderTopBar({ returnTo, onOpenBookmarks }: ReaderTopBarProps) {
           aria-valuenow={currentIndex + 1}
           aria-label="阅读进度"
         >
-          <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-800/80">
+          <div className="relative h-2 w-full rounded-full bg-slate-800/80">
             <div
               className="absolute left-0 top-0 h-full rounded-full bg-blue-500 transition-all duration-200"
               style={{ width: `${percent}%` }}
             />
+            {/* Chapter tick marks — skip chapter 0 which is the start */}
+            {total > 0 &&
+              chapters.slice(1).map((c) => (
+                <span
+                  key={c.index}
+                  className="absolute top-0 h-2 w-0.5 bg-slate-600/70"
+                  style={{ left: `${(c.index / total) * 100}%` }}
+                  aria-hidden
+                />
+              ))}
             {/* Thumb handle */}
             <div
               className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow ring-1 ring-blue-600/60 transition-all"

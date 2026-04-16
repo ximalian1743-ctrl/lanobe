@@ -343,11 +343,12 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                     { id: 'dark', label: '深色' },
                     { id: 'sepia', label: '护眼' },
                     { id: 'light', label: '浅色' },
+                    { id: 'auto', label: '跟随系统' },
                   ].map((option) => (
                     <button
                       key={option.id}
                       type="button"
-                      onClick={() => updateSettings({ theme: option.id as 'dark' | 'light' | 'sepia' })}
+                      onClick={() => updateSettings({ theme: option.id as 'dark' | 'light' | 'sepia' | 'auto' })}
                       className={[
                         'rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em]',
                         settings.theme === option.id

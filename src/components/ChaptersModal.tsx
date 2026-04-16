@@ -163,11 +163,12 @@ export function ChaptersModal({ onClose, slug, volumeId }: ChaptersModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[80] flex bg-slate-950/70 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl"
+        className="flex h-full w-full max-w-sm flex-col overflow-hidden border-r border-slate-800 bg-slate-900 shadow-2xl"
+        style={{ animation: 'drawerIn 260ms cubic-bezier(0.22,1,0.36,1)' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-800 p-6">

@@ -348,9 +348,14 @@ export function EntryList({ readingCtx, onOpenNote, onLookup }: EntryListProps =
 
   if (entries.length === 0) {
     return (
-      <div className="rounded-3xl border-2 border-dashed border-slate-800 bg-slate-900/20 py-32 text-center text-slate-500">
-        <p className="mb-2 text-lg font-medium">{text.entryList.emptyTitle}</p>
-        <p className="text-sm text-slate-600">{text.entryList.emptyDescription}</p>
+      <div className="flex flex-col items-center justify-center rounded-3xl border border-slate-800/50 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.08),_transparent_60%)] py-24 text-center">
+        <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-800/80 bg-slate-900/60">
+          <span className="text-3xl" aria-hidden>
+            📖
+          </span>
+        </div>
+        <p className="mb-2 text-lg font-semibold text-slate-200">{text.entryList.emptyTitle}</p>
+        <p className="max-w-sm text-sm leading-6 text-slate-500">{text.entryList.emptyDescription}</p>
       </div>
     );
   }

@@ -19,7 +19,7 @@ export interface BackendSettings {
   pauseBetweenEntriesMs: number;
 }
 
-export type Theme = 'dark' | 'light' | 'sepia';
+export type Theme = 'dark' | 'light' | 'sepia' | 'auto';
 export type FuriganaMode = 'hidden' | 'bracket' | 'ruby';
 
 export interface AppSettings extends BackendSettings {

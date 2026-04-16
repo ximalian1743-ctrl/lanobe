@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Check, Copy, FileText, Upload } from 'lucide-react';
 import { useLoadContent } from '../hooks/useLoadContent';
 import { useUiText } from '../hooks/useUiText';
+import { QuickTtsPanel } from './QuickTtsPanel';
 
 const FORMAT_TEMPLATE = `jp: 日本語テキスト（必须 / Required）
 zh: 中文翻译（可选 / Optional）
@@ -131,6 +132,9 @@ export function TxtUploadPanel() {
           {FORMAT_TEMPLATE}
         </pre>
       </div>
+
+      {/* Quick TTS — speak any pasted JP/ZH text without uploading a file */}
+      <QuickTtsPanel />
     </div>
   );
 }

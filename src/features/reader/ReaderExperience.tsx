@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, UploadCloud } from 'lucide-react';
 import { AiExplainModal } from '../../components/AiExplainModal';
 import { Controls } from '../../components/Controls';
@@ -6,6 +6,8 @@ import { EntryList } from '../../components/EntryList';
 import { Header } from '../../components/Header';
 import { SettingsModal } from '../../components/SettingsModal';
 import { TxtUploadPanel } from '../../components/TxtUploadPanel';
+import { ReaderTopBar } from '../../components/ReaderTopBar';
+import { useToast } from '../../components/Toast';
 import { useAudioQueue } from '../../hooks/useAudioQueue';
 import { useLoadContent } from '../../hooks/useLoadContent';
 import { useAppStore } from '../../store/useAppStore';
@@ -21,11 +23,53 @@ export function ReaderExperience({ showHeader = true, returnTo, showEmptyUpload 
   const [showSettings, setShowSettings] = useState(false);
   const [showAiExplain, setShowAiExplain] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const { isGeneratingChapters, setIsPlaying, entries } = useAppStore();
+  const { isGeneratingChapters, setIsPlaying, entries, currentIndex, isFetching, audioCache } = useAppStore();
   const { loadContent } = useLoadContent();
   const { text } = useUiText();
+  const { toast } = useToast();
 
   useAudioQueue();
+
+  // Toast: progress-saved feedback (debounced)
+  const firstMount = useRef(true);
+  const savedTimer = useRef<number | null>(null);
+  useEffect(() => {
+    if (firstMount.current) {
+      firstMount.current = false;
+      return;
+    }
+    if (entries.length === 0) return;
+    if (savedTimer.current) window.clearTimeout(savedTimer.current);
+    savedTimer.current = window.setTimeout(() => {
+      toast('进度已保存', 'success');
+    }, 600);
+    return () => {
+      if (savedTimer.current) window.clearTimeout(savedTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex]);
+
+  // Toast: audio generation state for current entry
+  const lastAudioState = useRef<'idle' | 'fetching' | 'ready'>('idle');
+  useEffect(() => {
+    if (entries.length === 0) {
+      lastAudioState.current = 'idle';
+      return;
+    }
+    const fetching = !!isFetching[currentIndex];
+    const ready = !!audioCache[currentIndex];
+    let next: 'idle' | 'fetching' | 'ready' = 'idle';
+    if (fetching) next = 'fetching';
+    else if (ready) next = 'ready';
+
+    if (next === 'fetching' && lastAudioState.current !== 'fetching') {
+      toast('正在生成音频…', 'info');
+    } else if (next === 'ready' && lastAudioState.current === 'fetching') {
+      toast('音频已就绪', 'success');
+    }
+    lastAudioState.current = next;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex, isFetching[currentIndex], audioCache[currentIndex]]);
 
   const handleDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
@@ -86,14 +130,14 @@ export function ReaderExperience({ showHeader = true, returnTo, showEmptyUpload 
         </div>
       )}
 
+      {/* Sticky top bar with progress + chapter + font scale */}
+      {entries.length > 0 && <ReaderTopBar returnTo={returnTo} />}
+
       <div className="flex-1 overflow-y-auto pb-[calc(env(safe-area-inset-bottom)+8.75rem)] md:pb-[calc(env(safe-area-inset-bottom)+9.5rem)]">
         <div className="mx-auto max-w-5xl p-4 md:p-5 lg:p-6">
           {showHeader ? <Header onOpenSettings={() => setShowSettings(true)} onOpenChapters={() => undefined} /> : null}
-          {!isGeneratingChapters && (
-            showEmptyUpload && entries.length === 0
-              ? <TxtUploadPanel />
-              : <EntryList />
-          )}
+          {!isGeneratingChapters &&
+            (showEmptyUpload && entries.length === 0 ? <TxtUploadPanel /> : <EntryList />)}
         </div>
       </div>
 

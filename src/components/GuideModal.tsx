@@ -1,4 +1,5 @@
 import { X } from 'lucide-react';
+import { useEscClose } from '../hooks/useModalDismiss';
 
 interface GuideModalProps {
   title: string;
@@ -9,9 +10,16 @@ interface GuideModalProps {
 }
 
 export function GuideModal({ title, summary, steps, closeLabel, onClose }: GuideModalProps) {
+  useEscClose(onClose);
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/82 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-2xl rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl">
+    <div
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/82 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-2xl rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-start justify-between gap-4 border-b border-slate-800 px-5 py-4">
           <div>
             <h2 className="text-xl font-bold text-slate-100">{title}</h2>

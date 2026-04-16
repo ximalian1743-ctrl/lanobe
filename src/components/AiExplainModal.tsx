@@ -3,6 +3,7 @@ import { Loader2, RefreshCw, Sparkles, X } from 'lucide-react';
 import { explainEntryWithAi, EntryExplanation } from '../services/aiService';
 import { useAppStore } from '../store/useAppStore';
 import { useUiText } from '../hooks/useUiText';
+import { useEscClose } from '../hooks/useModalDismiss';
 
 function Section({
   title,
@@ -31,6 +32,7 @@ function Section({
 export function AiExplainModal({ onClose }: { onClose: () => void }) {
   const { entries, currentIndex, settings, setIsPlaying } = useAppStore();
   const { text, uiLanguage } = useUiText();
+  useEscClose(onClose);
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [error, setError] = useState('');
   const [result, setResult] = useState<EntryExplanation | null>(null);
@@ -99,10 +101,14 @@ export function AiExplainModal({ onClose }: { onClose: () => void }) {
   }, [generateExplanation, setIsPlaying]);
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/86 p-0 md:items-center md:p-4 backdrop-blur-sm">
+    <div
+      className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/86 p-0 md:items-center md:p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <div
         data-testid="ai-explain-modal"
         className="flex h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-t-[32px] border border-slate-800 bg-[linear-gradient(180deg,_rgba(15,23,42,0.98),_rgba(2,6,23,0.96))] shadow-2xl md:h-auto md:max-h-[90vh] md:rounded-[34px]"
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="border-b border-slate-800/80 bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.16),_rgba(15,23,42,0.2)_35%,_transparent_70%)] px-5 py-4">
           <div className="flex items-start justify-between gap-4">

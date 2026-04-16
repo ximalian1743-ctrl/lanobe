@@ -13,6 +13,7 @@ const defaultSettings: AppSettings = {
   showWords: true,
   showFurigana: false,
   readerDensity: 'compact',
+  readerFontScale: 1,
   jpVoice: "ja-JP-NanamiNeural",
   chVoice: "zh-CN-XiaoxiaoNeural",
   jpRate: 1.0,

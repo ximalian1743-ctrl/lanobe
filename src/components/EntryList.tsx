@@ -1,11 +1,20 @@
-import React, { memo, useEffect, useMemo, useRef } from 'react';
-import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Volume2 } from 'lucide-react';
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AlertCircle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Volume2,
+} from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useAppStore } from '../store/useAppStore';
 import { AppSettings, Entry } from '../types';
 import { cn } from '../lib/utils';
 import { useUiText } from '../hooks/useUiText';
 import { clampPageIndex, getTotalPages, ITEMS_PER_PAGE } from '../lib/pagination';
+import { useSwipe } from '../hooks/useSwipe';
 
 const EntryItem = memo(
   ({
@@ -30,6 +39,8 @@ const EntryItem = memo(
     const fetchError = useAppStore((state) => state.fetchErrors[originalIndex]);
     const { text } = useUiText();
     const compact = settings.readerDensity === 'compact';
+    const scale = settings.readerFontScale ?? 1;
+    const [wordsExpanded, setWordsExpanded] = useState(false);
 
     return (
       <li
@@ -46,13 +57,21 @@ const EntryItem = memo(
             : 'border-slate-800/50 bg-slate-900/40 hover:border-slate-700 hover:bg-slate-800/60',
         )}
       >
-        {isActive && isPlaying && <div className="absolute bottom-0 left-0 top-0 w-1 bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]"></div>}
+        {isActive && isPlaying && (
+          <div className="absolute bottom-0 left-0 top-0 w-1 bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]"></div>
+        )}
 
-        <div className={compact ? 'mb-2 flex items-start justify-between' : 'mb-3 flex items-start justify-between md:mb-4'}>
+        <div
+          className={
+            compact ? 'mb-2 flex items-start justify-between' : 'mb-3 flex items-start justify-between md:mb-4'
+          }
+        >
           <span
             className={cn(
               'flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-bold md:px-2.5 md:text-xs',
-              isActive ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-800 text-slate-500 group-hover:bg-slate-700 group-hover:text-slate-400',
+              isActive
+                ? 'bg-blue-500/20 text-blue-400'
+                : 'bg-slate-800 text-slate-500 group-hover:bg-slate-700 group-hover:text-slate-400',
             )}
           >
             {isActive && isPlaying && <Volume2 size={12} className="animate-pulse" />}
@@ -61,7 +80,10 @@ const EntryItem = memo(
 
           <div className="flex items-center gap-1.5 md:gap-2">
             {fetchError ? (
-              <span className="flex items-center gap-1 rounded-lg border border-red-500/20 bg-red-500/10 px-2 py-1 text-[11px] font-medium text-red-400 md:px-2.5 md:text-xs" title={fetchError}>
+              <span
+                className="flex items-center gap-1 rounded-lg border border-red-500/20 bg-red-500/10 px-2 py-1 text-[11px] font-medium text-red-400 md:px-2.5 md:text-xs"
+                title={fetchError}
+              >
                 <AlertCircle size={12} /> {text.entryList.loadFailed}
               </span>
             ) : fetching ? (
@@ -84,10 +106,11 @@ const EntryItem = memo(
           <p
             className={cn(
               compact
-                ? 'mb-1.5 text-base font-medium leading-7 tracking-wide transition-colors md:mb-2 md:text-lg'
-                : 'mb-2 text-lg font-medium leading-relaxed tracking-wide transition-colors md:mb-3 md:text-2xl',
+                ? 'mb-1.5 font-medium leading-7 tracking-wide transition-colors md:mb-2'
+                : 'mb-2 font-medium leading-relaxed tracking-wide transition-colors md:mb-3',
               isActive ? 'text-blue-100' : 'text-slate-200 group-hover:text-slate-100',
             )}
+            style={{ fontSize: `${(compact ? 1 : 1.2) * scale}rem` }}
           >
             {settings.showFurigana ? entry.jp : entry.jp.replace(/\[[^\]]+\]/g, '')}
           </p>
@@ -96,31 +119,60 @@ const EntryItem = memo(
         {settings.showZH && entry.ch && (
           <p
             className={cn(
-              compact ? 'text-xs leading-6 transition-colors md:text-sm' : 'text-sm leading-relaxed transition-colors md:text-lg',
+              compact ? 'leading-6 transition-colors' : 'leading-relaxed transition-colors',
               isActive ? 'text-blue-300/80' : 'text-slate-400 group-hover:text-slate-300',
             )}
+            style={{ fontSize: `${(compact ? 0.82 : 1) * scale}rem` }}
           >
             {entry.ch}
           </p>
         )}
 
         {settings.showWords && entry.words.length > 0 && (
-          <div className={compact ? 'mt-3 flex flex-wrap gap-1.5 border-t border-slate-800/50 pt-2.5' : 'mt-4 flex flex-wrap gap-1.5 border-t border-slate-800/50 pt-3 md:mt-5 md:gap-2 md:pt-4'}>
-            {entry.words.map((word, index) => (
-              <span
-                key={`${entry.id}-${index}`}
-                className={cn(
-                  compact
-                    ? 'inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] shadow-sm transition-colors md:text-xs'
-                    : 'inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] shadow-sm transition-colors md:rounded-xl md:px-3 md:py-1.5 md:text-sm',
-                  isActive ? 'border-blue-800/50 bg-blue-950/50 text-blue-300' : 'border-slate-800/80 bg-slate-950/50 text-slate-300',
-                )}
-              >
-                <span className={isActive ? 'font-medium text-blue-200' : 'font-medium text-blue-300'}>{word[0]}</span>
-                <span className={isActive ? 'text-blue-800/50' : 'text-slate-700'}>|</span>
-                <span className={isActive ? 'text-blue-300/80' : 'text-slate-400'}>{word[1]}</span>
-              </span>
-            ))}
+          <div
+            className={
+              compact
+                ? 'mt-3 border-t border-slate-800/50 pt-2.5'
+                : 'mt-4 border-t border-slate-800/50 pt-3 md:mt-5 md:pt-4'
+            }
+          >
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setWordsExpanded((v) => !v);
+              }}
+              className="mb-2 inline-flex items-center gap-1 rounded-full bg-slate-800/60 px-2.5 py-1 text-[10px] font-semibold text-slate-300 hover:bg-slate-700 md:text-xs"
+            >
+              <ChevronDown
+                size={12}
+                className={wordsExpanded ? 'rotate-180 transition-transform' : 'transition-transform'}
+              />
+              {entry.words.length} {wordsExpanded ? '收起' : '个词'}
+            </button>
+            {wordsExpanded && (
+              <div className="flex flex-wrap gap-1.5 md:gap-2">
+                {entry.words.map((word, index) => (
+                  <span
+                    key={`${entry.id}-${index}`}
+                    className={cn(
+                      compact
+                        ? 'inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] shadow-sm transition-colors md:text-xs'
+                        : 'inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] shadow-sm transition-colors md:rounded-xl md:px-3 md:py-1.5 md:text-sm',
+                      isActive
+                        ? 'border-blue-800/50 bg-blue-950/50 text-blue-300'
+                        : 'border-slate-800/80 bg-slate-950/50 text-slate-300',
+                    )}
+                  >
+                    <span className={isActive ? 'font-medium text-blue-200' : 'font-medium text-blue-300'}>
+                      {word[0]}
+                    </span>
+                    <span className={isActive ? 'text-blue-800/50' : 'text-slate-700'}>|</span>
+                    <span className={isActive ? 'text-blue-300/80' : 'text-slate-400'}>{word[1]}</span>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </li>
@@ -128,10 +180,13 @@ const EntryItem = memo(
   },
 );
 
+EntryItem.displayName = 'EntryItem';
+
 export function EntryList() {
   const entries = useAppStore((state) => state.entries);
   const currentIndex = useAppStore((state) => state.currentIndex);
   const setCurrentIndex = useAppStore((state) => state.setCurrentIndex);
+  const setIsPlaying = useAppStore((state) => state.setIsPlaying);
   const currentPage = useAppStore((state) => state.readerPageIndex);
   const setCurrentPage = useAppStore((state) => state.setReaderPageIndex);
   const isPlaying = useAppStore((state) => state.isPlaying);
@@ -158,6 +213,18 @@ export function EntryList() {
     }));
   }, [currentPage, entries]);
 
+  // Swipe to navigate pages
+  const swipe = useSwipe({
+    onSwipeLeft: () => setCurrentPage(clampPageIndex(currentPage + 1, entries.length)),
+    onSwipeRight: () => setCurrentPage(clampPageIndex(currentPage - 1, entries.length)),
+  });
+
+  // Click entry → jump and auto-start playback
+  const handleSelect = (index: number) => {
+    setCurrentIndex(index);
+    setIsPlaying(true);
+  };
+
   if (entries.length === 0) {
     return (
       <div className="rounded-3xl border-2 border-dashed border-slate-800 bg-slate-900/20 py-32 text-center text-slate-500">
@@ -168,7 +235,7 @@ export function EntryList() {
   }
 
   return (
-    <div className="pb-20">
+    <div className="pb-20" {...swipe}>
       {totalPages > 1 && (
         <div className="mb-5 flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/80 p-3 shadow-sm backdrop-blur-sm">
           <button
@@ -208,7 +275,7 @@ export function EntryList() {
               isActive={originalIndex === currentIndex}
               isPlaying={isPlaying}
               settings={settings}
-              onSelect={setCurrentIndex}
+              onSelect={handleSelect}
               activeRef={originalIndex === currentIndex ? activeRef : null}
             />
           ))}

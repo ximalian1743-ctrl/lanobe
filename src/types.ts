@@ -27,6 +27,8 @@ export interface AppSettings extends BackendSettings {
   showWords: boolean;
   showFurigana: boolean;
   readerDensity: 'compact' | 'comfortable';
+  /** Font scale multiplier for reader text (0.85 – 1.4). */
+  readerFontScale: number;
   entryConcurrency: number;
   aiApiKey: string;
   aiApiBase: string;

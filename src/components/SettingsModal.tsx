@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useAppStore } from '../store/useAppStore';
 import { useUiText } from '../hooks/useUiText';
 import { LanguageSwitcher } from './LanguageSwitcher';
+import { useEscClose } from '../hooks/useModalDismiss';
 
 type TabId = 'quick' | 'audio' | 'display' | 'advanced';
 
@@ -40,6 +41,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     clearCache,
   } = useAppStore();
   const { text } = useUiText();
+  useEscClose(onClose);
   const [tab, setTab] = useState<TabId>('quick');
   const [search, setSearch] = useState('');
   const [jumpPercent, setJumpPercent] = useState(0);
@@ -109,8 +111,14 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/84 p-0 backdrop-blur-sm md:items-center md:p-4">
-      <div className="flex h-[88dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-[32px] border border-slate-800 bg-[linear-gradient(180deg,_rgba(15,23,42,0.98),_rgba(2,6,23,0.95))] shadow-2xl md:h-auto md:max-h-[90vh] md:rounded-[34px]">
+    <div
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/84 p-0 backdrop-blur-sm md:items-center md:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex h-[88dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-[32px] border border-slate-800 bg-[linear-gradient(180deg,_rgba(15,23,42,0.98),_rgba(2,6,23,0.95))] shadow-2xl md:h-auto md:max-h-[90vh] md:rounded-[34px]"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-slate-800 bg-[radial-gradient(circle_at_top_left,_rgba(251,146,60,0.15),_rgba(15,23,42,0.25)_38%,_transparent_70%)] px-5 py-4">
           <div>
             <h2 className="text-xl font-bold text-slate-100">{text.settings.title}</h2>

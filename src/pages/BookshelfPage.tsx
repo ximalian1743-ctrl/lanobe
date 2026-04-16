@@ -253,27 +253,60 @@ export function BookshelfPage() {
                     <div className="mt-5 rounded-2xl border border-stone-800/80 bg-stone-900/65 p-4">
                       <p className="text-xs uppercase tracking-[0.22em] text-stone-400">{text.bookshelf.pickVolumeLabel}</p>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {volumeOptions.map((volume) => (
-                          <button
-                            key={`${book.slug}-${volume.id}`}
-                            type="button"
-                            onClick={() =>
-                              setSelectedVolumes((current) => ({
-                                ...current,
-                                [book.slug]: volume.id,
-                              }))
-                            }
-                            className={[
-                              'rounded-full px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] transition-colors duration-150',
-                              selectedVolumeId === volume.id
-                                ? 'bg-orange-400 text-stone-950'
-                                : 'border border-stone-700 bg-stone-950/75 text-stone-200 hover:border-stone-500',
-                            ].join(' ')}
-                          >
-                            {volume.label}
-                          </button>
-                        ))}
+                        {volumeOptions.map((volume) => {
+                          const volProgress =
+                            builtInBookProgress[buildBuiltInBookProgressKey(book.slug, volume.id)];
+                          const isLastOpened = lastOpenedVolumes[book.slug] === volume.id;
+                          const isSelected = selectedVolumeId === volume.id;
+                          return (
+                            <button
+                              key={`${book.slug}-${volume.id}`}
+                              type="button"
+                              onClick={() =>
+                                setSelectedVolumes((current) => ({
+                                  ...current,
+                                  [book.slug]: volume.id,
+                                }))
+                              }
+                              className={[
+                                'relative rounded-full px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] transition-colors duration-150',
+                                isSelected
+                                  ? 'bg-orange-400 text-stone-950'
+                                  : 'border border-stone-700 bg-stone-950/75 text-stone-200 hover:border-stone-500',
+                              ].join(' ')}
+                            >
+                              {volume.label}
+                              {volProgress && !isSelected ? (
+                                <span
+                                  className={[
+                                    'absolute -right-1 -top-1 h-2 w-2 rounded-full',
+                                    isLastOpened ? 'bg-orange-300' : 'bg-teal-400/80',
+                                  ].join(' ')}
+                                  title={
+                                    isLastOpened
+                                      ? `上次 · 第 ${volProgress.currentIndex + 1} 行`
+                                      : `进度 · 第 ${volProgress.currentIndex + 1} 行`
+                                  }
+                                />
+                              ) : null}
+                            </button>
+                          );
+                        })}
                       </div>
+                      {lastOpenedVolumes[book.slug] && (
+                        <p className="mt-3 text-[11px] text-stone-500">
+                          <span className="mr-1 inline-block h-2 w-2 rounded-full bg-orange-300 align-middle" />
+                          上次阅读：
+                          {getFormattedVolumeLabel(lastOpenedVolumes[book.slug], uiLanguage)}
+                          {(() => {
+                            const p =
+                              builtInBookProgress[
+                                buildBuiltInBookProgressKey(book.slug, lastOpenedVolumes[book.slug])
+                              ];
+                            return p ? ` · 第 ${p.currentIndex + 1} 行 / ${p.entryCount}` : '';
+                          })()}
+                        </p>
+                      )}
                     </div>
 
                     <div className="mt-6 flex flex-wrap gap-3">

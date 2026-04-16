@@ -2,14 +2,22 @@
 import { List, X } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useUiText } from '../hooks/useUiText';
+import { useEscClose } from '../hooks/useModalDismiss';
 
 export function ChaptersModal({ onClose }: { onClose: () => void }) {
   const { chapters, currentIndex, setCurrentIndex } = useAppStore();
   const { text, format } = useUiText();
+  useEscClose(onClose);
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl">
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-slate-800 p-6">
           <h2 className="flex items-center gap-2 text-xl font-bold text-slate-200">
             <List size={24} className="text-blue-400" />

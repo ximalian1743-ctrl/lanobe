@@ -52,10 +52,12 @@ export function SiteFrame({ eyebrow, title, description, children }: SiteFramePr
 
       <div className="mx-auto max-w-6xl px-4 py-5 md:px-6 md:py-6">
         {/* Page title line — single line, no decorative hero */}
-        <div className="mb-5 flex items-baseline justify-between gap-3">
+        <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-orange-300/80">{eyebrow}</p>
-            <h1 className="mt-1 truncate text-xl font-black tracking-tight text-stone-100 md:text-2xl">{title}</h1>
+            <h1 className="mt-1 line-clamp-2 text-xl font-black leading-tight tracking-tight text-stone-100 md:text-2xl">
+              {title}
+            </h1>
           </div>
           {description ? (
             <p className="hidden max-w-md text-right text-[11px] text-stone-400/80 md:block">{description}</p>

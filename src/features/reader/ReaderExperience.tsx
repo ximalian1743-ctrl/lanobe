@@ -12,6 +12,7 @@ import { NoteEditorModal } from '../../components/NoteEditorModal';
 import { WordLookupSheet } from '../../components/WordLookupSheet';
 import { ChaptersModal } from '../../components/ChaptersModal';
 import { MiniPlayer } from '../../components/MiniPlayer';
+import { ScrollToTopButton } from '../../components/ScrollToTopButton';
 import { useToast } from '../../components/Toast';
 import { useAudioQueue } from '../../hooks/useAudioQueue';
 import { useLoadContent } from '../../hooks/useLoadContent';
@@ -59,6 +60,21 @@ export function ReaderExperience({
 
   useAudioQueue();
   useReadingTimer(slug, volumeId);
+
+  // One-time hint so new users know the floating player exists.
+  useEffect(() => {
+    if (entries.length === 0) return;
+    try {
+      if (window.localStorage.getItem('lanobe-hint-mini-player-v1') === '1') return;
+      const t = window.setTimeout(() => {
+        toast('右下角是悬浮播放器 · 点 ⌃ 展开更多控制', 'info');
+        window.localStorage.setItem('lanobe-hint-mini-player-v1', '1');
+      }, 1400);
+      return () => window.clearTimeout(t);
+    } catch {
+      /* localStorage may be unavailable */
+    }
+  }, [entries.length, toast]);
 
   // Apply theme
   useEffect(() => {
@@ -252,6 +268,7 @@ export function ReaderExperience({
         onOpenAi={handleOpenAiExplain}
         onOpenChapters={() => setShowChapters(true)}
       />
+      <ScrollToTopButton targetRef={scrollRef} />
 
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       {showAiExplain && <AiExplainModal onClose={() => setShowAiExplain(false)} slug={slug} volumeId={volumeId} />}

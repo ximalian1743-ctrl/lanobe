@@ -138,7 +138,7 @@ const EntryItem = memo(
                       : 'text-slate-500 hover:bg-slate-800 hover:text-amber-300',
                   )}
                   title={bookmark ? '取消书签' : '加入书签'}
-                  aria-label={bookmark ? 'remove bookmark' : 'add bookmark'}
+                  aria-label={bookmark ? '取消书签' : '加入书签'}
                 >
                   {bookmark ? <BookmarkCheck size={14} /> : <Bookmark size={14} />}
                 </button>
@@ -155,7 +155,7 @@ const EntryItem = memo(
                       : 'text-slate-500 hover:bg-slate-800 hover:text-blue-300',
                   )}
                   title={note ? '查看 / 编辑笔记' : '添加笔记'}
-                  aria-label="note"
+                  aria-label={note ? '查看或编辑笔记' : '添加笔记'}
                 >
                   <StickyNote size={14} />
                 </button>
@@ -363,23 +363,25 @@ export function EntryList({ readingCtx, onOpenNote, onLookup }: EntryListProps =
   return (
     <div className="pb-20" {...swipe}>
       {totalPages > 1 && (
-        <div className="mb-5 flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/80 p-3 shadow-sm backdrop-blur-sm">
+        <div className="mb-3 flex items-center justify-center gap-2 text-xs text-slate-500">
           <button
             onClick={() => setCurrentPage(clampPageIndex(currentPage - 1, entries.length))}
             disabled={currentPage === 0}
-            className="rounded-xl bg-slate-800 p-2 text-slate-300 transition-colors hover:bg-slate-700 disabled:opacity-30"
+            className="rounded-full bg-slate-800/70 p-1.5 text-slate-400 transition-colors hover:bg-slate-700 disabled:opacity-30"
+            aria-label="上一页"
           >
-            <ChevronLeft size={20} />
+            <ChevronLeft size={14} />
           </button>
-          <span className="text-sm font-medium tracking-wide text-slate-400">
+          <span className="font-medium tracking-wide">
             {format(text.entryList.pageLabel, { page: currentPage + 1, total: totalPages })}
           </span>
           <button
             onClick={() => setCurrentPage(clampPageIndex(currentPage + 1, entries.length))}
             disabled={currentPage === totalPages - 1}
-            className="rounded-xl bg-slate-800 p-2 text-slate-300 transition-colors hover:bg-slate-700 disabled:opacity-30"
+            className="rounded-full bg-slate-800/70 p-1.5 text-slate-400 transition-colors hover:bg-slate-700 disabled:opacity-30"
+            aria-label="下一页"
           >
-            <ChevronRight size={20} />
+            <ChevronRight size={14} />
           </button>
         </div>
       )}

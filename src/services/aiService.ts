@@ -31,7 +31,34 @@ function parseJsonContent(content: string) {
     throw new Error('AI response did not contain a JSON object');
   }
 
-  return JSON.parse(candidate.slice(firstBrace, lastBrace + 1));
+  const raw = candidate.slice(firstBrace, lastBrace + 1);
+
+  // Gemini-family models sometimes emit lenient JSON. Try strict first,
+  // then fall back through a sequence of tolerant transformations so a
+  // single trailing comma / comment doesn't drop the whole explanation.
+  try {
+    return JSON.parse(raw);
+  } catch {
+    // Strip trailing commas before } or ]
+    const noTrailingCommas = raw.replace(/,\s*([}\]])/g, '$1');
+    try {
+      return JSON.parse(noTrailingCommas);
+    } catch {
+      // Strip // line comments and /* block comments */
+      const stripped = noTrailingCommas
+        .replace(/\/\/[^\n]*/g, '')
+        .replace(/\/\*[\s\S]*?\*\//g, '');
+      try {
+        return JSON.parse(stripped);
+      } catch {
+        // Last-resort: remove unescaped literal newlines inside double-quoted strings
+        const flattened = stripped.replace(/"([^"\\]|\\.)*"/gs, (match) =>
+          match.replace(/\n/g, '\\n').replace(/\r/g, ''),
+        );
+        return JSON.parse(flattened);
+      }
+    }
+  }
 }
 
 function getOutputLanguageName(language: UiLanguage) {

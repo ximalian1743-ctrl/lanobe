@@ -55,12 +55,14 @@ export function ReaderPage() {
     }
 
     return {
-      title: '阅读页使用引导',
-      summary: '这一页已经把长期占位的控件收紧，正文可见区域会大很多。',
+      title: '阅读页使用指南',
+      summary: '阅读页已经精简为沉浸式界面，正文占据大部分区域。',
       steps: [
-        '底部只保留播放、前后切换、定位和设置按钮。',
-        '搜索、百分比跳转、自动连播、显示切换和播放顺序预设，都收进设置按钮里了。',
-        '如果想切到别的分册，请先回书架选择，这一页不再常驻悬浮分册切换。',
+        '右下角蓝色圆球是悬浮播放器：点击播放 / 暂停；点 ⌃ 按钮展开前后切换、定位、章节、AI 讲解、设置。',
+        '顶栏的进度条可直接点击或拖动跳转；字号、主题、书签入口在右上。',
+        '双击正文：中间切换播放；左三分之一上一句；右三分之一下一句。左右滑动切换到上 / 下一页。',
+        '长按选中日文词汇会弹出划词查询；每条旁的 📖 加书签、📝 加笔记。',
+        '切换到别的分册请先回书架选择。',
       ],
     };
   }, [uiLanguage]);
@@ -200,14 +202,12 @@ export function ReaderPage() {
     };
   }, [localizedMeta, selectedVolume?.label, slug]);
 
-  useEffect(() => {
-    if (window.localStorage.getItem('lanobe-guide-reader-v2') !== '1') {
-      setShowGuide(true);
-    }
-  }, []);
+  // Guide no longer auto-opens — users can access it via the '?' icon
+  // in the reader top bar. Auto-popup blocked every cold session and
+  // referenced UI that has since been redesigned.
 
   const handleCloseGuide = () => {
-    window.localStorage.setItem('lanobe-guide-reader-v2', '1');
+    window.localStorage.setItem('lanobe-guide-reader-v4', '1');
     setShowGuide(false);
   };
 

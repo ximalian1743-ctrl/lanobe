@@ -24,6 +24,13 @@ export function ReaderTopBar({ returnTo, onOpenBookmarks }: ReaderTopBarProps) {
 
   const currentChapter = useMemo(() => {
     if (!chapters.length) return null;
+    // If the current entry is before the first chapter header, show a
+    // "前言" placeholder instead of misleadingly claiming we're inside
+    // chapters[0] — which caused e.g. "Intermission ..." to display on
+    // the very first entry of the book.
+    if (currentIndex < chapters[0].index) {
+      return { title: '前言', index: 0 };
+    }
     let match = chapters[0];
     for (const c of chapters) {
       if (c.index <= currentIndex) match = c;
@@ -90,9 +97,9 @@ export function ReaderTopBar({ returnTo, onOpenBookmarks }: ReaderTopBarProps) {
               <span className="truncate">阅读中</span>
             )}
           </div>
-          <span className="shrink-0 whitespace-nowrap font-mono text-xs text-slate-400">
+          <span className="shrink-0 whitespace-nowrap font-mono text-[11px] text-slate-400">
             {currentOneBased} / {total}
-            <span className="mx-1 text-slate-600">·</span>
+            <span className="mx-1.5 text-slate-600">·</span>
             {percent}%
           </span>
           {/* Font group */}

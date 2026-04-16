@@ -129,11 +129,7 @@ export function BookshelfPage() {
     };
   }, [uiLanguage]);
 
-  useEffect(() => {
-    if (window.localStorage.getItem('lanobe-guide-bookshelf-v2') !== '1') {
-      setShowGuide(true);
-    }
-  }, []);
+  // Guide no longer auto-opens — opens via explicit trigger if needed.
 
   const handleCloseGuide = () => {
     window.localStorage.setItem('lanobe-guide-bookshelf-v2', '1');

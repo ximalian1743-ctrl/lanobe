@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import {
+  ChevronDown,
+  ChevronUp,
   LocateFixed,
   Pause,
   Play,
@@ -7,7 +9,6 @@ import {
   SkipBack,
   SkipForward,
   Sparkles,
-  X,
 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 
@@ -123,11 +124,11 @@ export function MiniPlayer({ onOpenSettings, onOpenAi, onOpenChapters, hidden }:
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-          aria-label={expanded ? '收起控制' : '展开控制'}
-          title={expanded ? '收起' : '更多'}
+          className="flex h-9 w-9 items-center justify-center rounded-full text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+          aria-label={expanded ? '收起更多控制' : '展开更多控制'}
+          title={expanded ? '收起' : '前后 / 章节 / AI / 设置'}
         >
-          {expanded ? <X size={14} /> : <span className="text-lg leading-none">···</span>}
+          {expanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
         </button>
       </div>
     </div>

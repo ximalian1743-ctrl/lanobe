@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookMarked, Clock3, Loader2, Upload } from 'lucide-react';
+import { ArrowRight, BookMarked, Clock3, Headphones, Loader2, Upload } from 'lucide-react';
 import { motion } from 'motion/react';
 import { GuideModal } from '../components/GuideModal';
 import { SiteFrame } from '../components/SiteFrame';
 import { fetchBooksIndex } from '../services/bookService';
 import { buildBuiltInBookProgressKey, BuiltInBookSummary } from '../types/books';
-import { useAppStore } from '../store/useAppStore';
+import { useAppStore, buildVolumeKey } from '../store/useAppStore';
 import { useUiText } from '../hooks/useUiText';
 import { getFormattedVolumeLabel, getLocalizedBookSummary } from '../i18n/books';
+import { formatReadingTime } from '../hooks/useReadingTimer';
 
 function BookCardSkeleton() {
   return (
@@ -55,6 +56,7 @@ export function BookshelfPage() {
   const builtInBookProgress = useAppStore((state) => state.builtInBookProgress);
   const lastOpenedVolumes = useAppStore((state) => state.lastOpenedVolumes);
   const lastOpenedBook = useAppStore((state) => state.lastOpenedBook);
+  const readingTime = useAppStore((state) => state.readingTime);
   const { text, format, uiLanguage } = useUiText();
 
   useEffect(() => {
@@ -309,6 +311,18 @@ export function BookshelfPage() {
                       )}
                     </div>
 
+                    {(() => {
+                      const timeKey = buildVolumeKey(book.slug, selectedVolumeId);
+                      const seconds = readingTime[timeKey] ?? 0;
+                      if (seconds === 0) return null;
+                      return (
+                        <p className="mt-3 text-[11px] text-stone-500">
+                          <Clock3 size={11} className="mr-1 inline align-middle" />
+                          本卷已阅读 {formatReadingTime(seconds)}
+                        </p>
+                      );
+                    })()}
+
                     <div className="mt-6 flex flex-wrap gap-3">
                       <Link
                         to={`/lanobe/book/${book.slug}?volume=${selectedVolumeId}`}
@@ -317,6 +331,14 @@ export function BookshelfPage() {
                         {hasSelectedProgress ? text.common.resume : text.bookshelf.openSelectedVolume}
                         <ArrowRight size={16} />
                       </Link>
+                      <Link
+                        to={`/lanobe/drive/${book.slug}?volume=${selectedVolumeId}`}
+                        className="inline-flex items-center gap-2 rounded-full border border-blue-600/50 bg-blue-600/15 px-5 py-3 text-sm font-semibold text-blue-200 hover:bg-blue-600/25"
+                        title="听书模式（适合开车/通勤）"
+                      >
+                        <Headphones size={16} />
+                        听书
+                      </Link>
                       {hasResumeProgress && selectedVolumeId !== resumeVolumeId ? (
                         <Link
                           to={`/lanobe/book/${book.slug}?volume=${resumeVolumeId}`}
@@ -324,14 +346,7 @@ export function BookshelfPage() {
                         >
                           {text.bookshelf.resumeSavedVolume}
                         </Link>
-                      ) : (
-                        <Link
-                          to={`/lanobe/book/${book.slug}?volume=${book.defaultVolumeId}`}
-                          className="inline-flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-5 py-3 text-sm font-semibold text-stone-100 hover:border-stone-500"
-                        >
-                          {text.bookshelf.openVolumeOne}
-                        </Link>
-                      )}
+                      ) : null}
                     </div>
                   </motion.article>
                 );

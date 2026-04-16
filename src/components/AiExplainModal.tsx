@@ -1,9 +1,10 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, RefreshCw, Sparkles, X } from 'lucide-react';
+import { Loader2, RefreshCw, Sparkles, StickyNote, X } from 'lucide-react';
 import { explainEntryWithAi, EntryExplanation } from '../services/aiService';
-import { useAppStore } from '../store/useAppStore';
+import { useAppStore, buildEntryKey } from '../store/useAppStore';
 import { useUiText } from '../hooks/useUiText';
 import { useEscClose } from '../hooks/useModalDismiss';
+import { useToast } from './Toast';
 
 function Section({
   title,
@@ -29,9 +30,22 @@ function Section({
   );
 }
 
-export function AiExplainModal({ onClose }: { onClose: () => void }) {
+interface AiExplainModalProps {
+  onClose: () => void;
+  /** Optional reading context so explanations can be cached / saved to notes. */
+  slug?: string;
+  volumeId?: string;
+}
+
+export function AiExplainModal({ onClose, slug, volumeId }: AiExplainModalProps) {
   const { entries, currentIndex, settings, setIsPlaying } = useAppStore();
+  const setAiExplanation = useAppStore((s) => s.setAiExplanation);
+  const cachedExplanation = useAppStore((s) =>
+    slug && volumeId ? s.aiExplanations[buildEntryKey(slug, volumeId, currentIndex)] : undefined,
+  );
+  const setNote = useAppStore((s) => s.setNote);
   const { text, uiLanguage } = useUiText();
+  const { toast } = useToast();
   useEscClose(onClose);
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [error, setError] = useState('');
@@ -51,54 +65,95 @@ export function AiExplainModal({ onClose }: { onClose: () => void }) {
     [currentEntry],
   );
 
-  const generateExplanation = useCallback(async () => {
-    if (!currentEntry) {
-      setStatus('error');
-      setError(text.aiModal.noSentence);
-      return;
-    }
+  const generateExplanation = useCallback(
+    async (force = false) => {
+      if (!currentEntry) {
+        setStatus('error');
+        setError(text.aiModal.noSentence);
+        return;
+      }
 
-    setStatus('loading');
-    setError('');
+      // Use cached explanation if available (unless forced regenerate)
+      if (!force && cachedExplanation?.data) {
+        setResult(cachedExplanation.data as EntryExplanation);
+        setStatus('success');
+        return;
+      }
 
-    try {
-      const explanation = await explainEntryWithAi({
-        entry: currentEntry,
-        previousEntry,
-        nextEntry,
-        lineNumber: currentIndex + 1,
-        apiKey: settings.aiApiKey,
-        apiBase: settings.aiApiBase,
-        model: settings.aiModel,
-        backendApiBase: settings.apiBase,
-        uiLanguage,
-      });
+      setStatus('loading');
+      setError('');
 
-      setResult(explanation);
-      setStatus('success');
-    } catch (nextError) {
-      console.error('Failed to explain entry with AI', nextError);
-      setStatus('error');
-      setError(nextError instanceof Error ? nextError.message : text.aiModal.failed);
-    }
-  }, [
-    currentEntry,
-    currentIndex,
-    nextEntry,
-    previousEntry,
-    settings.aiApiBase,
-    settings.aiApiKey,
-    settings.aiModel,
-    settings.apiBase,
-    text.aiModal.failed,
-    text.aiModal.noSentence,
-    uiLanguage,
-  ]);
+      try {
+        const explanation = await explainEntryWithAi({
+          entry: currentEntry,
+          previousEntry,
+          nextEntry,
+          lineNumber: currentIndex + 1,
+          apiKey: settings.aiApiKey,
+          apiBase: settings.aiApiBase,
+          model: settings.aiModel,
+          backendApiBase: settings.apiBase,
+          uiLanguage,
+        });
+
+        setResult(explanation);
+        setStatus('success');
+        if (slug && volumeId) {
+          setAiExplanation(slug, volumeId, currentIndex, explanation);
+        }
+      } catch (nextError) {
+        console.error('Failed to explain entry with AI', nextError);
+        setStatus('error');
+        setError(nextError instanceof Error ? nextError.message : text.aiModal.failed);
+      }
+    },
+    [
+      cachedExplanation?.data,
+      currentEntry,
+      currentIndex,
+      nextEntry,
+      previousEntry,
+      settings.aiApiBase,
+      settings.aiApiKey,
+      settings.aiModel,
+      settings.apiBase,
+      setAiExplanation,
+      slug,
+      text.aiModal.failed,
+      text.aiModal.noSentence,
+      uiLanguage,
+      volumeId,
+    ],
+  );
 
   useEffect(() => {
     setIsPlaying(false);
     generateExplanation();
   }, [generateExplanation, setIsPlaying]);
+
+  function handleSaveToNote() {
+    if (!slug || !volumeId || !result) return;
+    const parts: string[] = [];
+    if (result.translation) parts.push(`【翻译】${result.translation}`);
+    if (result.overview) parts.push(`【整体】${result.overview}`);
+    if (result.grammarPoints?.length) {
+      parts.push(
+        '【语法】\n' +
+          result.grammarPoints.map((g) => `· ${g.title}：${g.explanation}`).join('\n'),
+      );
+    }
+    if (result.wordBreakdown?.length) {
+      parts.push(
+        '【词汇】\n' +
+          result.wordBreakdown
+            .map((w) => `· ${w.term}${w.reading ? `（${w.reading}）` : ''} - ${w.meaning}`)
+            .join('\n'),
+      );
+    }
+    if (result.teachingTip) parts.push(`【提示】${result.teachingTip}`);
+    setNote(slug, volumeId, currentIndex, parts.join('\n\n'));
+    toast('AI 讲解已保存到笔记', 'success');
+  }
 
   return (
     <div
@@ -161,7 +216,7 @@ export function AiExplainModal({ onClose }: { onClose: () => void }) {
               <p className="mt-2 text-sm leading-7 text-red-100/85">{error}</p>
               <button
                 type="button"
-                onClick={generateExplanation}
+                onClick={() => generateExplanation(true)}
                 className="mt-4 inline-flex items-center gap-2 rounded-full border border-red-200/25 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-100 transition-colors hover:bg-red-500/20"
               >
                 <RefreshCw size={16} />
@@ -169,6 +224,32 @@ export function AiExplainModal({ onClose }: { onClose: () => void }) {
               </button>
             </div>
           )}
+
+          {status === 'success' && slug && volumeId ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleSaveToNote}
+                className="inline-flex items-center gap-2 rounded-full border border-blue-500/25 bg-blue-500/10 px-4 py-2 text-sm font-semibold text-blue-100 transition-colors hover:bg-blue-500/20"
+              >
+                <StickyNote size={14} />
+                保存为笔记
+              </button>
+              <button
+                type="button"
+                onClick={() => generateExplanation(true)}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-slate-500"
+              >
+                <RefreshCw size={14} />
+                重新生成
+              </button>
+              {cachedExplanation ? (
+                <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-300">
+                  已缓存
+                </span>
+              ) : null}
+            </div>
+          ) : null}
 
           {status === 'success' && result && (
             <div className="mt-4 grid gap-4 md:grid-cols-2">

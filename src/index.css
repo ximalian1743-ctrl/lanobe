@@ -8,6 +8,89 @@
   scrollbar-width: none;
 }
 
+/* ─── Theme Tokens ────────────────────────────────────────────────────── */
+
+:root {
+  --app-bg: #020617;
+  --app-surface: #0f172a;
+  --app-fg: #e2e8f0;
+  --app-fg-muted: #94a3b8;
+  --app-border: rgba(71, 85, 105, 0.4);
+  --app-accent: #f59e0b;
+}
+
+/* Light theme */
+html[data-theme='light'] {
+  --app-bg: #fafaf9;
+  --app-surface: #ffffff;
+  --app-fg: #1c1917;
+  --app-fg-muted: #57534e;
+  --app-border: rgba(28, 25, 23, 0.1);
+  --app-accent: #ea580c;
+  color-scheme: light;
+}
+
+html[data-theme='light'] body {
+  background: var(--app-bg);
+  color: var(--app-fg);
+}
+
+/* Sepia (eye-care) theme */
+html[data-theme='sepia'] {
+  --app-bg: #f5efe0;
+  --app-surface: #efe4ca;
+  --app-fg: #3e2d1c;
+  --app-fg-muted: #7a6648;
+  --app-border: rgba(62, 45, 28, 0.15);
+  --app-accent: #b4612c;
+  color-scheme: light;
+}
+
+html[data-theme='sepia'] body {
+  background: var(--app-bg);
+  color: var(--app-fg);
+}
+
+/* Theme-aware overrides for reader surfaces (keep dark default untouched) */
+html[data-theme='light'] .bg-slate-950,
+html[data-theme='sepia'] .bg-slate-950 {
+  background-color: var(--app-bg) !important;
+}
+html[data-theme='light'] .text-slate-200,
+html[data-theme='light'] .text-slate-100,
+html[data-theme='sepia'] .text-slate-200,
+html[data-theme='sepia'] .text-slate-100 {
+  color: var(--app-fg) !important;
+}
+html[data-theme='light'] .bg-slate-900\/40,
+html[data-theme='light'] .bg-slate-900\/50,
+html[data-theme='light'] .bg-slate-900\/80,
+html[data-theme='light'] .bg-slate-900\/95,
+html[data-theme='sepia'] .bg-slate-900\/40,
+html[data-theme='sepia'] .bg-slate-900\/50,
+html[data-theme='sepia'] .bg-slate-900\/80,
+html[data-theme='sepia'] .bg-slate-900\/95 {
+  background-color: var(--app-surface) !important;
+}
+html[data-theme='light'] .border-slate-800\/50,
+html[data-theme='light'] .border-slate-800\/70,
+html[data-theme='light'] .border-slate-800\/80,
+html[data-theme='light'] .border-slate-800,
+html[data-theme='sepia'] .border-slate-800\/50,
+html[data-theme='sepia'] .border-slate-800\/70,
+html[data-theme='sepia'] .border-slate-800\/80,
+html[data-theme='sepia'] .border-slate-800 {
+  border-color: var(--app-border) !important;
+}
+html[data-theme='light'] .text-slate-400,
+html[data-theme='light'] .text-slate-500,
+html[data-theme='sepia'] .text-slate-400,
+html[data-theme='sepia'] .text-slate-500 {
+  color: var(--app-fg-muted) !important;
+}
+
+/* ─── Animations ──────────────────────────────────────────────────────── */
+
 @keyframes toastIn {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -16,4 +99,12 @@
 @keyframes toastOut {
   from { opacity: 1; transform: translateY(0); }
   to   { opacity: 0; transform: translateY(8px); }
+}
+
+/* Ruby tag styling — keep readings visually aligned */
+ruby rt {
+  font-size: 0.55em;
+  color: currentColor;
+  opacity: 0.7;
+  letter-spacing: 0;
 }

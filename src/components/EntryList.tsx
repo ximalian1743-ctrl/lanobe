@@ -1,20 +1,29 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
+  Bookmark,
+  BookmarkCheck,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Loader2,
+  StickyNote,
   Volume2,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useAppStore } from '../store/useAppStore';
+import { useAppStore, buildEntryKey } from '../store/useAppStore';
 import { AppSettings, Entry } from '../types';
 import { cn } from '../lib/utils';
 import { useUiText } from '../hooks/useUiText';
 import { clampPageIndex, getTotalPages, ITEMS_PER_PAGE } from '../lib/pagination';
 import { useSwipe } from '../hooks/useSwipe';
+import { renderRuby } from '../lib/ruby';
+
+interface ReadingContext {
+  slug: string;
+  volumeId: string;
+}
 
 const EntryItem = memo(
   ({
@@ -24,6 +33,9 @@ const EntryItem = memo(
     isPlaying,
     settings,
     onSelect,
+    onOpenNote,
+    onLookup,
+    readingCtx,
     activeRef,
   }: {
     entry: Entry;
@@ -32,15 +44,45 @@ const EntryItem = memo(
     isPlaying: boolean;
     settings: AppSettings;
     onSelect: (index: number) => void;
+    onOpenNote: (index: number) => void;
+    onLookup: (word: string) => void;
+    readingCtx: ReadingContext | null;
     activeRef: React.RefObject<HTMLLIElement> | null;
   }) => {
     const isCached = useAppStore((state) => !!state.audioCache[originalIndex]);
     const fetching = useAppStore((state) => state.isFetching[originalIndex]);
     const fetchError = useAppStore((state) => state.fetchErrors[originalIndex]);
+    const bookmark = useAppStore((state) =>
+      readingCtx
+        ? state.bookmarks[buildEntryKey(readingCtx.slug, readingCtx.volumeId, originalIndex)]
+        : undefined,
+    );
+    const note = useAppStore((state) =>
+      readingCtx
+        ? state.notes[buildEntryKey(readingCtx.slug, readingCtx.volumeId, originalIndex)]
+        : undefined,
+    );
+    const toggleBookmark = useAppStore((state) => state.toggleBookmark);
     const { text } = useUiText();
     const compact = settings.readerDensity === 'compact';
     const scale = settings.readerFontScale ?? 1;
     const [wordsExpanded, setWordsExpanded] = useState(false);
+
+    function handleBookmarkClick(e: React.MouseEvent) {
+      e.stopPropagation();
+      if (!readingCtx) return;
+      const preview = (entry.jp ?? '').replace(/\[[^\]]+\]/g, '').slice(0, 40);
+      toggleBookmark(readingCtx.slug, readingCtx.volumeId, originalIndex, preview);
+    }
+
+    function handleTextSelection(e: React.MouseEvent | React.TouchEvent) {
+      const sel = window.getSelection();
+      const txt = sel?.toString().trim();
+      if (txt && txt.length >= 1 && txt.length <= 12) {
+        e.stopPropagation();
+        onLookup(txt);
+      }
+    }
 
     return (
       <li
@@ -79,6 +121,41 @@ const EntryItem = memo(
           </span>
 
           <div className="flex items-center gap-1.5 md:gap-2">
+            {readingCtx ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleBookmarkClick}
+                  className={cn(
+                    'rounded-lg px-1.5 py-1 transition-colors',
+                    bookmark
+                      ? 'bg-amber-500/15 text-amber-400'
+                      : 'text-slate-500 hover:bg-slate-800 hover:text-amber-300',
+                  )}
+                  title={bookmark ? '取消书签' : '加入书签'}
+                  aria-label={bookmark ? 'remove bookmark' : 'add bookmark'}
+                >
+                  {bookmark ? <BookmarkCheck size={14} /> : <Bookmark size={14} />}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenNote(originalIndex);
+                  }}
+                  className={cn(
+                    'rounded-lg px-1.5 py-1 transition-colors',
+                    note
+                      ? 'bg-blue-500/15 text-blue-400'
+                      : 'text-slate-500 hover:bg-slate-800 hover:text-blue-300',
+                  )}
+                  title={note ? '查看 / 编辑笔记' : '添加笔记'}
+                  aria-label="note"
+                >
+                  <StickyNote size={14} />
+                </button>
+              </>
+            ) : null}
             {fetchError ? (
               <span
                 className="flex items-center gap-1 rounded-lg border border-red-500/20 bg-red-500/10 px-2 py-1 text-[11px] font-medium text-red-400 md:px-2.5 md:text-xs"
@@ -111,8 +188,14 @@ const EntryItem = memo(
               isActive ? 'text-blue-100' : 'text-slate-200 group-hover:text-slate-100',
             )}
             style={{ fontSize: `${(compact ? 1 : 1.2) * scale}rem` }}
+            onMouseUp={handleTextSelection}
+            onTouchEnd={handleTextSelection}
           >
-            {settings.showFurigana ? entry.jp : entry.jp.replace(/\[[^\]]+\]/g, '')}
+            {settings.showFurigana
+              ? settings.rubyFurigana
+                ? renderRuby(entry.jp)
+                : entry.jp
+              : entry.jp.replace(/\[[^\]]+\]/g, '')}
           </p>
         )}
 
@@ -127,6 +210,21 @@ const EntryItem = memo(
             {entry.ch}
           </p>
         )}
+
+        {note ? (
+          <div
+            className="mt-3 rounded-xl border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-xs text-blue-200/90"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenNote(originalIndex);
+            }}
+          >
+            <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-blue-400/80">
+              <StickyNote size={10} /> 笔记
+            </div>
+            <p className="line-clamp-2 whitespace-pre-wrap text-blue-100/85">{note.text}</p>
+          </div>
+        ) : null}
 
         {settings.showWords && entry.words.length > 0 && (
           <div
@@ -182,7 +280,13 @@ const EntryItem = memo(
 
 EntryItem.displayName = 'EntryItem';
 
-export function EntryList() {
+interface EntryListProps {
+  readingCtx?: ReadingContext | null;
+  onOpenNote?: (entryIndex: number) => void;
+  onLookup?: (word: string) => void;
+}
+
+export function EntryList({ readingCtx, onOpenNote, onLookup }: EntryListProps = {}) {
   const entries = useAppStore((state) => state.entries);
   const currentIndex = useAppStore((state) => state.currentIndex);
   const setCurrentIndex = useAppStore((state) => state.setCurrentIndex);
@@ -213,13 +317,11 @@ export function EntryList() {
     }));
   }, [currentPage, entries]);
 
-  // Swipe to navigate pages
   const swipe = useSwipe({
     onSwipeLeft: () => setCurrentPage(clampPageIndex(currentPage + 1, entries.length)),
     onSwipeRight: () => setCurrentPage(clampPageIndex(currentPage - 1, entries.length)),
   });
 
-  // Click entry → jump and auto-start playback
   const handleSelect = (index: number) => {
     setCurrentIndex(index);
     setIsPlaying(true);
@@ -276,6 +378,9 @@ export function EntryList() {
               isPlaying={isPlaying}
               settings={settings}
               onSelect={handleSelect}
+              onOpenNote={onOpenNote ?? (() => {})}
+              onLookup={onLookup ?? (() => {})}
+              readingCtx={readingCtx ?? null}
               activeRef={originalIndex === currentIndex ? activeRef : null}
             />
           ))}

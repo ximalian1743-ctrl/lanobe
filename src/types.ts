@@ -19,6 +19,8 @@ export interface BackendSettings {
   pauseBetweenEntriesMs: number;
 }
 
+export type Theme = 'dark' | 'light' | 'sepia';
+
 export interface AppSettings extends BackendSettings {
   apiBase: string;
   cacheAheadEntries: number;
@@ -26,9 +28,13 @@ export interface AppSettings extends BackendSettings {
   showZH: boolean;
   showWords: boolean;
   showFurigana: boolean;
+  /** Render furigana as native <ruby> instead of inline brackets. */
+  rubyFurigana: boolean;
   readerDensity: 'compact' | 'comfortable';
   /** Font scale multiplier for reader text (0.85 – 1.4). */
   readerFontScale: number;
+  /** Visual theme for reader + shell. */
+  theme: Theme;
   entryConcurrency: number;
   aiApiKey: string;
   aiApiBase: string;

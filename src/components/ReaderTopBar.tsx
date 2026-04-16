@@ -1,12 +1,16 @@
 import { useMemo, useRef } from 'react';
-import { ALargeSmall, BookOpen, Type } from 'lucide-react';
+import { ALargeSmall, Bookmark, BookOpen, Moon, Sun, Type } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
+import { Theme } from '../types';
 
 interface ReaderTopBarProps {
   returnTo?: string;
+  onOpenBookmarks?: () => void;
 }
 
-export function ReaderTopBar({ returnTo }: ReaderTopBarProps) {
+const THEME_CYCLE: Theme[] = ['dark', 'sepia', 'light'];
+
+export function ReaderTopBar({ returnTo, onOpenBookmarks }: ReaderTopBarProps) {
   const entries = useAppStore((s) => s.entries);
   const currentIndex = useAppStore((s) => s.currentIndex);
   const setCurrentIndex = useAppStore((s) => s.setCurrentIndex);
@@ -44,10 +48,17 @@ export function ReaderTopBar({ returnTo }: ReaderTopBarProps) {
     updateSettings({ readerFontScale: clamped });
   }
 
+  function cycleTheme() {
+    const idx = THEME_CYCLE.indexOf(settings.theme);
+    const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length];
+    updateSettings({ theme: next });
+  }
+
+  const ThemeIcon = settings.theme === 'dark' ? Moon : settings.theme === 'light' ? Sun : BookOpen;
+
   return (
     <div className="sticky top-0 z-40 border-b border-slate-800/70 bg-slate-950/92 px-3 py-2 backdrop-blur-md">
       <div className="mx-auto flex max-w-5xl flex-col gap-1.5">
-        {/* Row 1: chapter + counts + font controls */}
         <div className="flex items-center gap-2">
           {returnTo ? (
             <a
@@ -88,10 +99,27 @@ export function ReaderTopBar({ returnTo }: ReaderTopBarProps) {
             >
               <Type size={14} />
             </button>
+            <button
+              type="button"
+              onClick={cycleTheme}
+              className="rounded-full p-1 text-slate-300 hover:bg-slate-800"
+              title={`当前：${settings.theme === 'dark' ? '深色' : settings.theme === 'light' ? '浅色' : '护眼'}（点击切换）`}
+            >
+              <ThemeIcon size={14} />
+            </button>
+            {onOpenBookmarks ? (
+              <button
+                type="button"
+                onClick={onOpenBookmarks}
+                className="rounded-full p-1 text-slate-300 hover:bg-slate-800"
+                title="我的书签"
+              >
+                <Bookmark size={14} />
+              </button>
+            ) : null}
           </div>
         </div>
 
-        {/* Row 2: progress bar (seekable) */}
         <div
           ref={progressRef}
           onClick={(e) => handleSeek(e.clientX)}

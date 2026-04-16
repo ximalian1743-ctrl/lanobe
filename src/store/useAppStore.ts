@@ -12,10 +12,12 @@ const defaultSettings: AppSettings = {
   showZH: true,
   showWords: true,
   showFurigana: false,
+  rubyFurigana: true,
   readerDensity: 'compact',
   readerFontScale: 1,
-  jpVoice: "ja-JP-NanamiNeural",
-  chVoice: "zh-CN-XiaoxiaoNeural",
+  theme: 'dark',
+  jpVoice: 'ja-JP-NanamiNeural',
+  chVoice: 'zh-CN-XiaoxiaoNeural',
   jpRate: 1.0,
   chRate: 1.0,
   sequence: ['jp', 'ch', 'word_pair'],
@@ -39,7 +41,7 @@ interface AppState {
   isPlaying: boolean;
   autoNext: boolean;
   settings: AppSettings;
-  audioCache: Record<number, string>; // index -> object URL
+  audioCache: Record<number, string>;
   isFetching: Record<number, boolean>;
   fetchErrors: Record<number, string>;
   locateTrigger: number;
@@ -48,7 +50,17 @@ interface AppState {
   builtInBookProgress: Record<string, BuiltInBookProgress>;
   lastOpenedVolumes: Record<string, string>;
   lastOpenedBook: LastOpenedBook | null;
-  
+
+  // Round 2 additions
+  /** Key: `${slug}::${volumeId}::${entryIndex}` → timestamp */
+  bookmarks: Record<string, BookmarkEntry>;
+  /** Key: `${slug}::${volumeId}::${entryIndex}` → free-form note text */
+  notes: Record<string, NoteEntry>;
+  /** Key: `${slug}::${volumeId}` → total active reading time in seconds */
+  readingTime: Record<string, number>;
+  /** Cached AI explanations. Key: `${slug}::${volumeId}::${entryIndex}` → explanation object */
+  aiExplanations: Record<string, AiExplanationCache>;
+
   setUiLanguage: (uiLanguage: UiLanguage) => void;
   setEntries: (entries: Entry[]) => void;
   setCurrentIndex: (index: number) => void;
@@ -64,6 +76,15 @@ interface AppState {
   setChapters: (chapters: Chapter[]) => void;
   setIsGeneratingChapters: (isGenerating: boolean) => void;
   saveBuiltInBookProgress: (input: SaveBuiltInBookProgressInput) => void;
+
+  toggleBookmark: (slug: string, volumeId: string, entryIndex: number, title?: string) => void;
+  removeBookmark: (key: string) => void;
+  setNote: (slug: string, volumeId: string, entryIndex: number, text: string) => void;
+  removeNote: (key: string) => void;
+  addReadingTime: (slug: string, volumeId: string, seconds: number) => void;
+  setAiExplanation: (slug: string, volumeId: string, entryIndex: number, data: AiExplanationCache['data']) => void;
+  clearAiExplanations: () => void;
+  importPersistedState: (payload: Partial<PersistedAppState>) => void;
 }
 
 interface BuiltInBookProgress {
@@ -93,13 +114,51 @@ interface SaveBuiltInBookProgressInput {
   entryCount: number;
 }
 
-interface PersistedAppState {
+export interface BookmarkEntry {
+  slug: string;
+  volumeId: string;
+  entryIndex: number;
+  /** short preview title (jp text trimmed) to display in bookmark list */
+  preview: string;
+  createdAt: string;
+}
+
+export interface NoteEntry {
+  slug: string;
+  volumeId: string;
+  entryIndex: number;
+  text: string;
+  updatedAt: string;
+}
+
+export interface AiExplanationCache {
+  slug: string;
+  volumeId: string;
+  entryIndex: number;
+  /** Stored as the raw explanation object from aiService */
+  data: unknown;
+  savedAt: string;
+}
+
+export interface PersistedAppState {
   uiLanguage?: UiLanguage;
   settings?: AppSettings;
   autoNext?: boolean;
   builtInBookProgress?: Record<string, BuiltInBookProgress>;
   lastOpenedVolumes?: Record<string, string>;
   lastOpenedBook?: LastOpenedBook | null;
+  bookmarks?: Record<string, BookmarkEntry>;
+  notes?: Record<string, NoteEntry>;
+  readingTime?: Record<string, number>;
+  aiExplanations?: Record<string, AiExplanationCache>;
+}
+
+export function buildEntryKey(slug: string, volumeId: string, entryIndex: number): string {
+  return `${slug}::${volumeId}::${entryIndex}`;
+}
+
+export function buildVolumeKey(slug: string, volumeId: string): string {
+  return `${slug}::${volumeId}`;
 }
 
 export const useAppStore = create<AppState>()(
@@ -121,17 +180,38 @@ export const useAppStore = create<AppState>()(
       builtInBookProgress: {},
       lastOpenedVolumes: {},
       lastOpenedBook: null,
+      bookmarks: {},
+      notes: {},
+      readingTime: {},
+      aiExplanations: {},
 
       setUiLanguage: (uiLanguage) => set({ uiLanguage }),
-      setEntries: (entries) => set({ entries, currentIndex: 0, readerPageIndex: 0, audioCache: {}, isFetching: {}, fetchErrors: {}, isPlaying: false, chapters: [] }),
-      setCurrentIndex: (currentIndex) => set({ currentIndex, readerPageIndex: getPageIndexForEntry(currentIndex) }),
+      setEntries: (entries) =>
+        set({
+          entries,
+          currentIndex: 0,
+          readerPageIndex: 0,
+          audioCache: {},
+          isFetching: {},
+          fetchErrors: {},
+          isPlaying: false,
+          chapters: [],
+        }),
+      setCurrentIndex: (currentIndex) =>
+        set({ currentIndex, readerPageIndex: getPageIndexForEntry(currentIndex) }),
       setReaderPageIndex: (readerPageIndex) => set({ readerPageIndex }),
       setIsPlaying: (isPlaying) => set({ isPlaying }),
       setAutoNext: (autoNext) => set({ autoNext }),
       updateSettings: (newSettings) => set((state) => ({ settings: { ...state.settings, ...newSettings } })),
-      setAudioCache: (index, url) => set((state) => ({ audioCache: { ...state.audioCache, [index]: url }, fetchErrors: { ...state.fetchErrors, [index]: '' } })),
-      setIsFetching: (index, fetching) => set((state) => ({ isFetching: { ...state.isFetching, [index]: fetching } })),
-      setFetchError: (index, error) => set((state) => ({ fetchErrors: { ...state.fetchErrors, [index]: error || '' } })),
+      setAudioCache: (index, url) =>
+        set((state) => ({
+          audioCache: { ...state.audioCache, [index]: url },
+          fetchErrors: { ...state.fetchErrors, [index]: '' },
+        })),
+      setIsFetching: (index, fetching) =>
+        set((state) => ({ isFetching: { ...state.isFetching, [index]: fetching } })),
+      setFetchError: (index, error) =>
+        set((state) => ({ fetchErrors: { ...state.fetchErrors, [index]: error || '' } })),
       clearCache: () => set({ audioCache: {}, isFetching: {}, fetchErrors: {} }),
       triggerLocate: () => set((state) => ({ locateTrigger: state.locateTrigger + 1 })),
       setChapters: (chapters) => set({ chapters }),
@@ -167,6 +247,93 @@ export const useAppStore = create<AppState>()(
             },
           };
         }),
+
+      toggleBookmark: (slug, volumeId, entryIndex, preview) =>
+        set((state) => {
+          const key = buildEntryKey(slug, volumeId, entryIndex);
+          const next = { ...state.bookmarks };
+          if (next[key]) {
+            delete next[key];
+          } else {
+            next[key] = {
+              slug,
+              volumeId,
+              entryIndex,
+              preview: (preview ?? '').slice(0, 80),
+              createdAt: new Date().toISOString(),
+            };
+          }
+          return { bookmarks: next };
+        }),
+      removeBookmark: (key) =>
+        set((state) => {
+          const next = { ...state.bookmarks };
+          delete next[key];
+          return { bookmarks: next };
+        }),
+      setNote: (slug, volumeId, entryIndex, text) =>
+        set((state) => {
+          const key = buildEntryKey(slug, volumeId, entryIndex);
+          const next = { ...state.notes };
+          if (!text.trim()) {
+            delete next[key];
+          } else {
+            next[key] = {
+              slug,
+              volumeId,
+              entryIndex,
+              text,
+              updatedAt: new Date().toISOString(),
+            };
+          }
+          return { notes: next };
+        }),
+      removeNote: (key) =>
+        set((state) => {
+          const next = { ...state.notes };
+          delete next[key];
+          return { notes: next };
+        }),
+      addReadingTime: (slug, volumeId, seconds) =>
+        set((state) => {
+          const key = buildVolumeKey(slug, volumeId);
+          return {
+            readingTime: {
+              ...state.readingTime,
+              [key]: (state.readingTime[key] ?? 0) + Math.max(0, seconds),
+            },
+          };
+        }),
+      setAiExplanation: (slug, volumeId, entryIndex, data) =>
+        set((state) => {
+          const key = buildEntryKey(slug, volumeId, entryIndex);
+          return {
+            aiExplanations: {
+              ...state.aiExplanations,
+              [key]: {
+                slug,
+                volumeId,
+                entryIndex,
+                data,
+                savedAt: new Date().toISOString(),
+              },
+            },
+          };
+        }),
+      clearAiExplanations: () => set({ aiExplanations: {} }),
+      importPersistedState: (payload) =>
+        set((state) => ({
+          uiLanguage: payload.uiLanguage ?? state.uiLanguage,
+          autoNext: payload.autoNext ?? state.autoNext,
+          settings: { ...state.settings, ...(payload.settings ?? {}) },
+          builtInBookProgress: payload.builtInBookProgress ?? state.builtInBookProgress,
+          lastOpenedVolumes: payload.lastOpenedVolumes ?? state.lastOpenedVolumes,
+          lastOpenedBook: payload.lastOpenedBook ?? state.lastOpenedBook,
+          bookmarks: payload.bookmarks ?? state.bookmarks,
+          notes: payload.notes ?? state.notes,
+          readingTime: payload.readingTime ?? state.readingTime,
+          aiExplanations: payload.aiExplanations ?? state.aiExplanations,
+        })),
     }),
     {
       name: 'lanobe-storage',
@@ -177,10 +344,13 @@ export const useAppStore = create<AppState>()(
         builtInBookProgress: state.builtInBookProgress,
         lastOpenedVolumes: state.lastOpenedVolumes,
         lastOpenedBook: state.lastOpenedBook,
+        bookmarks: state.bookmarks,
+        notes: state.notes,
+        readingTime: state.readingTime,
+        aiExplanations: state.aiExplanations,
       }),
       merge: (persistedState: unknown, currentState) => {
         const persisted = (persistedState ?? {}) as PersistedAppState;
-
         return {
           ...currentState,
           uiLanguage: persisted.uiLanguage ?? currentState.uiLanguage,
@@ -188,12 +358,16 @@ export const useAppStore = create<AppState>()(
           builtInBookProgress: persisted.builtInBookProgress ?? currentState.builtInBookProgress,
           lastOpenedVolumes: persisted.lastOpenedVolumes ?? currentState.lastOpenedVolumes,
           lastOpenedBook: persisted.lastOpenedBook ?? currentState.lastOpenedBook,
+          bookmarks: persisted.bookmarks ?? currentState.bookmarks,
+          notes: persisted.notes ?? currentState.notes,
+          readingTime: persisted.readingTime ?? currentState.readingTime,
+          aiExplanations: persisted.aiExplanations ?? currentState.aiExplanations,
           settings: {
             ...currentState.settings,
-            ...(persisted.settings || {})
-          }
+            ...(persisted.settings || {}),
+          },
         };
-      }
-    }
-  )
+      },
+    },
+  ),
 );

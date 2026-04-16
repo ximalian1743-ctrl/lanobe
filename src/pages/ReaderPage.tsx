@@ -4,6 +4,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import { GuideModal } from '../components/GuideModal';
 import { ReaderExperience } from '../features/reader/ReaderExperience';
 import { useLoadContent } from '../hooks/useLoadContent';
+import { useReadingTimer } from '../hooks/useReadingTimer';
 import { fetchBookMeta, fetchBookText } from '../services/bookService';
 import { buildBuiltInBookProgressKey, BuiltInBookMeta } from '../types/books';
 import { useAppStore } from '../store/useAppStore';
@@ -20,6 +21,7 @@ export function ReaderPage() {
   const [hydratedLoadKey, setHydratedLoadKey] = useState<string | null>(null);
   const lastLoadedKey = useRef<string | null>(null);
   const { loadContent } = useLoadContent();
+  useReadingTimer(slug, searchParams.get('volume') ?? undefined);
   const lastOpenedVolumeId = useAppStore((state) => (slug ? state.lastOpenedVolumes[slug] : undefined));
   const currentIndex = useAppStore((state) => state.currentIndex);
   const entryCount = useAppStore((state) => state.entries.length);
@@ -240,6 +242,8 @@ export function ReaderPage() {
       <ReaderExperience
         showHeader={false}
         returnTo="/lanobe/bookshelf"
+        slug={slug}
+        volumeId={selectedVolume.id}
       />
 
       {showGuide && (

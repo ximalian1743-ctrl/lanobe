@@ -5,6 +5,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useUiText } from '../hooks/useUiText';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { useEscClose } from '../hooks/useModalDismiss';
+import { DataExportImportSection } from './DataExportImportSection';
 
 type TabId = 'quick' | 'audio' | 'display' | 'advanced';
 
@@ -336,6 +337,41 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                   ))}
                 </div>
               </section>
+              <section className={panelClass}>
+                <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-blue-400">主题</h3>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {[
+                    { id: 'dark', label: '深色' },
+                    { id: 'sepia', label: '护眼' },
+                    { id: 'light', label: '浅色' },
+                  ].map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => updateSettings({ theme: option.id as 'dark' | 'light' | 'sepia' })}
+                      className={[
+                        'rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em]',
+                        settings.theme === option.id
+                          ? 'bg-orange-400 text-stone-950'
+                          : 'border border-slate-700 bg-slate-900 text-slate-100 hover:border-slate-500',
+                      ].join(' ')}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-800/50 bg-slate-900/50 p-3 hover:border-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={settings.rubyFurigana ?? true}
+                    onChange={(e) => updateSettings({ rubyFurigana: e.target.checked })}
+                    className="h-4 w-4 accent-blue-500"
+                  />
+                  <span className="text-sm text-slate-300">
+                    使用 Ruby 注音渲染（需先开启"显示注音"）
+                  </span>
+                </label>
+              </section>
             </div>
           )}
 
@@ -362,6 +398,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                   {text.settings.clearCacheButton}
                 </button>
               </section>
+
+              <DataExportImportSection />
             </div>
           )}
           </motion.div>

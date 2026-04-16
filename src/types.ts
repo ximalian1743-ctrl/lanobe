@@ -20,6 +20,7 @@ export interface BackendSettings {
 }
 
 export type Theme = 'dark' | 'light' | 'sepia';
+export type FuriganaMode = 'hidden' | 'bracket' | 'ruby';
 
 export interface AppSettings extends BackendSettings {
   apiBase: string;
@@ -27,9 +28,12 @@ export interface AppSettings extends BackendSettings {
   showJP: boolean;
   showZH: boolean;
   showWords: boolean;
+  /** @deprecated Kept for migration only — use `furiganaMode`. */
   showFurigana: boolean;
-  /** Render furigana as native <ruby> instead of inline brackets. */
+  /** @deprecated Kept for migration only — use `furiganaMode`. */
   rubyFurigana: boolean;
+  /** Single source of truth for furigana rendering (replaces showFurigana + rubyFurigana). */
+  furiganaMode: FuriganaMode;
   readerDensity: 'compact' | 'comfortable';
   /** Font scale multiplier for reader text (0.85 – 1.4). */
   readerFontScale: number;

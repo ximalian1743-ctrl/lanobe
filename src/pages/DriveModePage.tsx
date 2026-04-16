@@ -109,13 +109,12 @@ export function DriveModePage() {
     return () => window.clearTimeout(timer);
   }, [slug, localizedMeta, selectedVolume, currentIndex, entries.length, saveBuiltInBookProgress]);
 
-  // Auto-play when loaded
+  // Keep playback paused until the user explicitly starts — avoids surprise
+  // audio bursts (especially on car speakers) when opening this page.
   useEffect(() => {
-    if (entries.length > 0 && !isPlaying) {
-      setIsPlaying(true);
-    }
+    setIsPlaying(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries.length]);
+  }, []);
 
   const currentEntry = entries[currentIndex];
   const jpClean = currentEntry?.jp?.replace(/\[[^\]]+\]/g, '') ?? '';
@@ -169,7 +168,9 @@ export function DriveModePage() {
 
       {/* Center: big sentence */}
       <div className="flex flex-1 flex-col items-center justify-center px-6 py-8 text-center">
-        <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.26em] text-amber-300">当前句</div>
+        <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.26em] text-amber-300">
+          {isPlaying ? '正在播放' : '点击下方大按钮开始播放'}
+        </div>
         <p
           className="mb-6 max-w-3xl text-slate-100"
           style={{ fontSize: `${1.8 * fontScale}rem`, lineHeight: 1.5, fontWeight: 600 }}

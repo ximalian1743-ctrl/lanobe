@@ -67,6 +67,7 @@ const EntryItem = memo(
     const compact = settings.readerDensity === 'compact';
     const scale = settings.readerFontScale ?? 1;
     const [wordsExpanded, setWordsExpanded] = useState(false);
+    const [noteExpanded, setNoteExpanded] = useState(false);
 
     function handleBookmarkClick(e: React.MouseEvent) {
       e.stopPropagation();
@@ -76,12 +77,16 @@ const EntryItem = memo(
     }
 
     function handleTextSelection(e: React.MouseEvent | React.TouchEvent) {
-      const sel = window.getSelection();
-      const txt = sel?.toString().trim();
-      if (txt && txt.length >= 1 && txt.length <= 12) {
-        e.stopPropagation();
-        onLookup(txt);
-      }
+      // Debounce selection to avoid firing on mid-drag / tap
+      window.setTimeout(() => {
+        const sel = window.getSelection();
+        const txt = sel?.toString().trim();
+        // Require 2+ chars, max 12, and only fire on genuine release
+        if (txt && txt.length >= 2 && txt.length <= 12) {
+          e.stopPropagation();
+          onLookup(txt);
+        }
+      }, 60);
     }
 
     return (
@@ -191,11 +196,11 @@ const EntryItem = memo(
             onMouseUp={handleTextSelection}
             onTouchEnd={handleTextSelection}
           >
-            {settings.showFurigana
-              ? settings.rubyFurigana
-                ? renderRuby(entry.jp)
-                : entry.jp
-              : entry.jp.replace(/\[[^\]]+\]/g, '')}
+            {settings.furiganaMode === 'hidden'
+              ? entry.jp.replace(/\[[^\]]+\]/g, '')
+              : settings.furiganaMode === 'bracket'
+                ? entry.jp
+                : renderRuby(entry.jp)}
           </p>
         )}
 
@@ -212,17 +217,29 @@ const EntryItem = memo(
         )}
 
         {note ? (
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setNoteExpanded((v) => !v);
+              }}
+              className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-300 hover:bg-blue-500/20"
+            >
+              <StickyNote size={10} />
+              {noteExpanded ? '收起笔记' : '已有笔记'}
+            </button>
+          </div>
+        ) : null}
+        {note && noteExpanded ? (
           <div
-            className="mt-3 rounded-xl border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-xs text-blue-200/90"
+            className="mt-2 rounded-xl border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-xs text-blue-200/90"
             onClick={(e) => {
               e.stopPropagation();
               onOpenNote(originalIndex);
             }}
           >
-            <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-blue-400/80">
-              <StickyNote size={10} /> 笔记
-            </div>
-            <p className="line-clamp-2 whitespace-pre-wrap text-blue-100/85">{note.text}</p>
+            <p className="whitespace-pre-wrap text-blue-100/85">{note.text}</p>
           </div>
         ) : null}
 
@@ -324,7 +341,9 @@ export function EntryList({ readingCtx, onOpenNote, onLookup }: EntryListProps =
 
   const handleSelect = (index: number) => {
     setCurrentIndex(index);
-    setIsPlaying(true);
+    // Preserve user's current play/pause intent — do NOT force-start playback.
+    // The audio queue will pick up the new index and continue if already playing.
+    void setIsPlaying;
   };
 
   if (entries.length === 0) {

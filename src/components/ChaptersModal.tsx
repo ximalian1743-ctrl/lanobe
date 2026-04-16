@@ -20,13 +20,15 @@ export function ChaptersModal({ onClose, slug, volumeId }: ChaptersModalProps) {
   const setCurrentIndex = useAppStore((s) => s.setCurrentIndex);
   const setAiExplanation = useAppStore((s) => s.setAiExplanation);
   const aiExplanations = useAppStore((s) => s.aiExplanations);
+  const setBatchAiProgress = useAppStore((s) => s.setBatchAiProgress);
+  const globalBatchProgress = useAppStore((s) => s.batchAiProgress);
   const { text, format, uiLanguage } = useUiText();
   const { toast } = useToast();
   useEscClose(onClose);
 
   const [batchChapterIdx, setBatchChapterIdx] = useState<number | null>(null);
-  const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
   const abortRef = useRef(false);
+  const batchProgress = globalBatchProgress ?? { done: 0, total: 0 };
 
   const hasAi = Boolean(
     settings.aiApiBase?.trim() && settings.aiApiKey?.trim() && settings.aiModel?.trim(),
@@ -66,7 +68,15 @@ export function ChaptersModal({ onClose, slug, volumeId }: ChaptersModalProps) {
 
       abortRef.current = false;
       setBatchChapterIdx(chapIdx);
-      setBatchProgress({ done: 0, total: targets.length });
+      const chapLabel = chap.title.slice(0, 18);
+      setBatchAiProgress({
+        label: `讲解 ${chapLabel}`,
+        done: 0,
+        total: targets.length,
+        onCancel: () => {
+          abortRef.current = true;
+        },
+      });
 
       const CONCURRENCY = Math.max(1, Math.min(3, settings.entryConcurrency || 2));
       let nextTarget = 0;
@@ -94,11 +104,25 @@ export function ChaptersModal({ onClose, slug, volumeId }: ChaptersModalProps) {
             if (abortRef.current) break;
             setAiExplanation(slug!, volumeId!, entryIdx, result);
             completed++;
-            setBatchProgress({ done: completed, total: targets.length });
+            setBatchAiProgress({
+              label: `讲解 ${chapLabel}`,
+              done: completed,
+              total: targets.length,
+              onCancel: () => {
+                abortRef.current = true;
+              },
+            });
           } catch (err) {
             console.error('batch ai failed', err);
             completed++;
-            setBatchProgress({ done: completed, total: targets.length });
+            setBatchAiProgress({
+              label: `讲解 ${chapLabel}`,
+              done: completed,
+              total: targets.length,
+              onCancel: () => {
+                abortRef.current = true;
+              },
+            });
           }
         }
       }
@@ -106,6 +130,7 @@ export function ChaptersModal({ onClose, slug, volumeId }: ChaptersModalProps) {
       await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
 
       setBatchChapterIdx(null);
+      setBatchAiProgress(null);
       if (abortRef.current) {
         toast('已中止批量讲解', 'warning');
       } else {
@@ -126,12 +151,14 @@ export function ChaptersModal({ onClose, slug, volumeId }: ChaptersModalProps) {
       settings.apiBase,
       uiLanguage,
       setAiExplanation,
+      setBatchAiProgress,
       toast,
     ],
   );
 
   function cancelBatch() {
     abortRef.current = true;
+    globalBatchProgress?.onCancel?.();
   }
 
   return (

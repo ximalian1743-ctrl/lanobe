@@ -8,6 +8,7 @@ import { SettingsModal } from '../../components/SettingsModal';
 import { TxtUploadPanel } from '../../components/TxtUploadPanel';
 import { ReaderTopBar } from '../../components/ReaderTopBar';
 import { BookmarksModal } from '../../components/BookmarksModal';
+import { BatchProgressBanner } from '../../components/BatchProgressBanner';
 import { NoteEditorModal } from '../../components/NoteEditorModal';
 import { WordLookupSheet } from '../../components/WordLookupSheet';
 import { ChaptersModal } from '../../components/ChaptersModal';
@@ -64,27 +65,9 @@ export function ReaderExperience({
     };
   }, [settings.theme]);
 
-  // Progress saved toast (debounced)
-  const firstMount = useRef(true);
-  const savedTimer = useRef<number | null>(null);
-  useEffect(() => {
-    if (firstMount.current) {
-      firstMount.current = false;
-      return;
-    }
-    if (entries.length === 0) return;
-    if (savedTimer.current) window.clearTimeout(savedTimer.current);
-    savedTimer.current = window.setTimeout(() => {
-      toast('进度已保存', 'success');
-    }, 600);
-    return () => {
-      if (savedTimer.current) window.clearTimeout(savedTimer.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex]);
-
-  // Audio state toast
+  // Audio state toast — only announce when fetch takes > 800ms (skip cache hits)
   const lastAudioState = useRef<'idle' | 'fetching' | 'ready'>('idle');
+  const audioToastTimer = useRef<number | null>(null);
   useEffect(() => {
     if (entries.length === 0) {
       lastAudioState.current = 'idle';
@@ -92,14 +75,20 @@ export function ReaderExperience({
     }
     const fetching = !!isFetching[currentIndex];
     const ready = !!audioCache[currentIndex];
-    let next: 'idle' | 'fetching' | 'ready' = 'idle';
-    if (fetching) next = 'fetching';
-    else if (ready) next = 'ready';
+    const prev = lastAudioState.current;
+    const next: 'idle' | 'fetching' | 'ready' = fetching ? 'fetching' : ready ? 'ready' : 'idle';
 
-    if (next === 'fetching' && lastAudioState.current !== 'fetching') {
-      toast('正在生成音频…', 'info');
-    } else if (next === 'ready' && lastAudioState.current === 'fetching') {
-      toast('音频已就绪', 'success');
+    // Only toast when fetching drags past threshold — avoids noise on cached entries
+    if (audioToastTimer.current) {
+      window.clearTimeout(audioToastTimer.current);
+      audioToastTimer.current = null;
+    }
+    if (next === 'fetching' && prev !== 'fetching') {
+      audioToastTimer.current = window.setTimeout(() => {
+        // Re-check state at fire time; maybe it resolved
+        const s = useAppStore.getState();
+        if (s.isFetching[currentIndex]) toast('正在生成音频…', 'info');
+      }, 800);
     }
     lastAudioState.current = next;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -168,6 +157,7 @@ export function ReaderExperience({
         </div>
       )}
 
+      <BatchProgressBanner />
       {entries.length > 0 && (
         <ReaderTopBar returnTo={returnTo} onOpenBookmarks={() => setShowBookmarks(true)} />
       )}

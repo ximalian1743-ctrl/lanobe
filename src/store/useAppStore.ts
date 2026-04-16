@@ -13,6 +13,7 @@ const defaultSettings: AppSettings = {
   showWords: true,
   showFurigana: false,
   rubyFurigana: true,
+  furiganaMode: 'ruby',
   readerDensity: 'compact',
   readerFontScale: 1,
   theme: 'dark',
@@ -60,6 +61,8 @@ interface AppState {
   readingTime: Record<string, number>;
   /** Cached AI explanations. Key: `${slug}::${volumeId}::${entryIndex}` → explanation object */
   aiExplanations: Record<string, AiExplanationCache>;
+  /** Global progress indicator for batch AI work that survives modal dismissal. */
+  batchAiProgress: BatchAiProgress | null;
 
   setUiLanguage: (uiLanguage: UiLanguage) => void;
   setEntries: (entries: Entry[]) => void;
@@ -84,7 +87,16 @@ interface AppState {
   addReadingTime: (slug: string, volumeId: string, seconds: number) => void;
   setAiExplanation: (slug: string, volumeId: string, entryIndex: number, data: AiExplanationCache['data']) => void;
   clearAiExplanations: () => void;
+  setBatchAiProgress: (progress: BatchAiProgress | null) => void;
   importPersistedState: (payload: Partial<PersistedAppState>) => void;
+}
+
+export interface BatchAiProgress {
+  label: string;
+  done: number;
+  total: number;
+  /** When non-null, clicking the indicator should call this to abort. */
+  onCancel?: () => void;
 }
 
 interface BuiltInBookProgress {
@@ -184,6 +196,7 @@ export const useAppStore = create<AppState>()(
       notes: {},
       readingTime: {},
       aiExplanations: {},
+      batchAiProgress: null,
 
       setUiLanguage: (uiLanguage) => set({ uiLanguage }),
       setEntries: (entries) =>
@@ -321,6 +334,7 @@ export const useAppStore = create<AppState>()(
           };
         }),
       clearAiExplanations: () => set({ aiExplanations: {} }),
+      setBatchAiProgress: (batchAiProgress) => set({ batchAiProgress }),
       importPersistedState: (payload) =>
         set((state) => ({
           uiLanguage: payload.uiLanguage ?? state.uiLanguage,
@@ -362,10 +376,16 @@ export const useAppStore = create<AppState>()(
           notes: persisted.notes ?? currentState.notes,
           readingTime: persisted.readingTime ?? currentState.readingTime,
           aiExplanations: persisted.aiExplanations ?? currentState.aiExplanations,
-          settings: {
-            ...currentState.settings,
-            ...(persisted.settings || {}),
-          },
+          settings: (() => {
+            const merged = { ...currentState.settings, ...(persisted.settings || {}) };
+            // Migrate legacy showFurigana + rubyFurigana → furiganaMode
+            if (!merged.furiganaMode || merged.furiganaMode === undefined) {
+              if (!merged.showFurigana) merged.furiganaMode = 'hidden';
+              else if (merged.rubyFurigana === false) merged.furiganaMode = 'bracket';
+              else merged.furiganaMode = 'ruby';
+            }
+            return merged;
+          })(),
         };
       },
     },

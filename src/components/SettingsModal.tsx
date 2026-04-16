@@ -59,7 +59,6 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     { id: 'showJP', label: text.settings.showJapanese },
     { id: 'showZH', label: text.settings.showChinese },
     { id: 'showWords', label: text.settings.showWords },
-    { id: 'showFurigana', label: text.settings.showFurigana },
   ] as const;
 
   const sequenceOptions = [
@@ -360,17 +359,37 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                     </button>
                   ))}
                 </div>
-                <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-800/50 bg-slate-900/50 p-3 hover:border-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={settings.rubyFurigana ?? true}
-                    onChange={(e) => updateSettings({ rubyFurigana: e.target.checked })}
-                    className="h-4 w-4 accent-blue-500"
-                  />
-                  <span className="text-sm text-slate-300">
-                    使用 Ruby 注音渲染（需先开启"显示注音"）
-                  </span>
-                </label>
+                <div className="mt-5">
+                  <p className="mb-2 text-xs font-semibold text-slate-400">注音显示</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { id: 'hidden', label: '隐藏' },
+                      { id: 'bracket', label: '方括号 [ ]' },
+                      { id: 'ruby', label: 'Ruby 注音' },
+                    ].map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() =>
+                          updateSettings({
+                            furiganaMode: option.id as 'hidden' | 'bracket' | 'ruby',
+                            // Keep legacy fields in sync so any old code still works
+                            showFurigana: option.id !== 'hidden',
+                            rubyFurigana: option.id === 'ruby',
+                          })
+                        }
+                        className={[
+                          'rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em]',
+                          settings.furiganaMode === option.id
+                            ? 'bg-orange-400 text-stone-950'
+                            : 'border border-slate-700 bg-slate-900 text-slate-100 hover:border-slate-500',
+                        ].join(' ')}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </section>
             </div>
           )}

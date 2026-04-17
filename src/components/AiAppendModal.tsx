@@ -13,13 +13,13 @@ export function AiAppendModal({ onClose }: AiAppendModalProps) {
   const settings = useAppStore((s) => s.settings);
   const batchAiProgress = useAppStore((s) => s.batchAiProgress);
   const aiBusy = !!batchAiProgress;
+  const queueAhead = batchAiProgress?.queueAhead ?? 0;
   const { toast } = useToast();
   const [text, setText] = useState('');
   // Always allow ESC to dismiss — AI keeps running in background via the banner.
   useEscClose(onClose);
 
   const handleSubmit = () => {
-    if (aiBusy) return;
     const value = text.trim();
     if (!value) {
       toast('请输入日语文本', 'error');
@@ -29,9 +29,13 @@ export function AiAppendModal({ onClose }: AiAppendModalProps) {
       toast(`文本过长（AI 最多 ${AI_MAX_CHARS} 字）`, 'error');
       return;
     }
-    // Fire-and-forget — the orchestrator publishes progress via the store,
-    // so closing the modal is safe and the user can keep reading while AI runs.
+    // Enqueue. If a batch is already running, this joins the queue and will
+    // run after. If idle, it starts immediately. Either way, the banner is
+    // the source of truth — closing the modal is safe.
     void runAiAnnotate({ text: value, settings, mode: 'append', toast });
+    if (aiBusy) {
+      toast('已排到队列，前面批次完成后自动接着处理', 'info');
+    }
     setText('');
     onClose();
   };
@@ -72,10 +76,11 @@ export function AiAppendModal({ onClose }: AiAppendModalProps) {
             <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs leading-6 text-amber-100">
               <div className="flex items-center gap-2 font-semibold">
                 <Loader2 size={13} className="animate-spin" />
-                上一批 AI 处理仍在进行
+                上一批 AI 正在处理
+                {queueAhead > 0 ? ` · 队列中还有 ${queueAhead} 批` : ''}
               </div>
               <p className="mt-1 text-amber-200/80">
-                可以关闭本窗口先回到阅读，处理进度在顶部横幅中显示。等它完成后再来追加下一段。
+                可以继续粘贴下一段并点"追加"——会自动排到队尾，前面批次完成后接着处理。
               </p>
             </div>
           ) : null}
@@ -85,8 +90,7 @@ export function AiAppendModal({ onClose }: AiAppendModalProps) {
             onChange={(e) => setText(e.target.value)}
             placeholder={`粘贴日文段落，AI 会自动切分为句子、标注平假名并翻译为中文（最多 ${AI_MAX_CHARS} 字）`}
             rows={8}
-            disabled={aiBusy}
-            className="w-full resize-y rounded-2xl border border-slate-700/60 bg-slate-900/70 px-3 py-2.5 text-sm leading-7 text-slate-100 outline-none transition-colors placeholder:text-slate-600 focus:border-amber-400/60 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full resize-y rounded-2xl border border-slate-700/60 bg-slate-900/70 px-3 py-2.5 text-sm leading-7 text-slate-100 outline-none transition-colors placeholder:text-slate-600 focus:border-amber-400/60"
           />
           <div className="flex items-center justify-between text-[11px] text-slate-500">
             <span>建议每次 200 ~ 5000 字；更长也支持但分段更多。</span>
@@ -105,12 +109,12 @@ export function AiAppendModal({ onClose }: AiAppendModalProps) {
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={aiBusy || text.trim().length === 0}
+              disabled={text.trim().length === 0}
               className="inline-flex items-center gap-2 rounded-full bg-amber-500 px-5 py-2 text-xs font-bold text-slate-900 shadow-lg shadow-amber-500/20 transition-all hover:bg-amber-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400 disabled:shadow-none"
-              title={aiBusy ? '等当前批次完成后再追加' : ''}
+              title={aiBusy ? '排入队列，前面完成后自动处理' : ''}
             >
               <Plus size={14} />
-              追加并 AI 处理
+              {aiBusy ? '排入队列' : '追加并 AI 处理'}
             </button>
           </div>
         </div>

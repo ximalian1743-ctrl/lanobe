@@ -106,6 +106,8 @@ export interface BatchAiProgress {
   onCancel?: () => void;
   /** When non-null, orchestrator is stuck waiting for user to re-trigger the failed chunk. */
   onRetry?: () => void;
+  /** Number of additional batches queued behind the currently-running one. */
+  queueAhead?: number;
 }
 
 interface BuiltInBookProgress {

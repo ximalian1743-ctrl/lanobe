@@ -20,18 +20,50 @@ interface RunArgs {
   toast: ToastFn;
 }
 
+interface QueueItem {
+  job: RunArgs;
+  resolve: (ok: boolean) => void;
+}
+
+/**
+ * Module-level FIFO queue. Clicking "追加" while a batch is in flight adds
+ * to this queue; jobs run one-at-a-time to avoid racing on chapter indices
+ * and entry ordering.
+ */
+const queue: QueueItem[] = [];
+let pumping = false;
+
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function runLabel(doneChunks: number, totalChunks: number, mode: 'replace' | 'append') {
+function runLabel(
+  doneChunks: number,
+  totalChunks: number,
+  mode: 'replace' | 'append',
+  queueAhead: number,
+) {
   const prefix = mode === 'append' ? 'AI 追加段落' : 'AI 分句处理';
-  if (doneChunks >= totalChunks) return `${prefix} · 完成`;
-  return `${prefix} · 处理第 ${Math.min(doneChunks + 1, totalChunks)} / ${totalChunks} 段`;
+  const base =
+    doneChunks >= totalChunks
+      ? `${prefix} · 完成`
+      : `${prefix} · 处理第 ${Math.min(doneChunks + 1, totalChunks)} / ${totalChunks} 段`;
+  return queueAhead > 0 ? `${base} · 队列还有 ${queueAhead} 批` : base;
 }
 
-function stuckLabel(failedIndex: number, totalChunks: number) {
-  return `第 ${failedIndex + 1} / ${totalChunks} 段失败 · 点击横幅「重试」`;
+function stuckLabel(failedIndex: number, totalChunks: number, queueAhead: number) {
+  const base = `第 ${failedIndex + 1} / ${totalChunks} 段失败 · 点击横幅「重试」`;
+  return queueAhead > 0 ? `${base} · 队列还有 ${queueAhead} 批` : base;
+}
+
+/** Re-publish the currently-running batch's progress with the latest queue depth. */
+function refreshQueueAhead() {
+  const current = useAppStore.getState().batchAiProgress;
+  if (!current) return;
+  useAppStore.getState().setBatchAiProgress({
+    ...current,
+    queueAhead: queue.length,
+  });
 }
 
 async function attemptChunkWithBackoff(
@@ -65,10 +97,6 @@ async function attemptChunkWithBackoff(
   return null;
 }
 
-/**
- * Wait for either a user-triggered retry signal or the controller abort.
- * Returns true if retry was signalled, false if aborted.
- */
 function waitForRetryOrAbort(
   signal: AbortSignal,
   attachResume: (resolve: () => void) => void,
@@ -90,7 +118,7 @@ function waitForRetryOrAbort(
   });
 }
 
-export async function runAiAnnotate({ text, settings, mode, toast }: RunArgs) {
+async function runOneJob({ text, settings, mode, toast }: RunArgs): Promise<boolean> {
   const value = text.trim();
   if (!value) {
     toast('请输入日语文本', 'error');
@@ -119,16 +147,24 @@ export async function runAiAnnotate({ text, settings, mode, toast }: RunArgs) {
   let resumeFn: (() => void) | null = null;
 
   const publishProgress = (done: number, stuckIndex: number | null) => {
+    const queueAhead = queue.length;
     useAppStore.getState().setBatchAiProgress({
-      label: stuckIndex !== null ? stuckLabel(stuckIndex, total) : runLabel(done, total, mode),
+      label:
+        stuckIndex !== null
+          ? stuckLabel(stuckIndex, total, queueAhead)
+          : runLabel(done, total, mode, queueAhead),
       done,
       total,
       onCancel: () => controller.abort(),
-      onRetry: stuckIndex !== null ? () => {
-        const fn = resumeFn;
-        resumeFn = null;
-        fn?.();
-      } : undefined,
+      onRetry:
+        stuckIndex !== null
+          ? () => {
+              const fn = resumeFn;
+              resumeFn = null;
+              fn?.();
+            }
+          : undefined,
+      queueAhead,
     });
   };
 
@@ -151,7 +187,6 @@ export async function runAiAnnotate({ text, settings, mode, toast }: RunArgs) {
       publishProgress(i, i);
       const resumed = await waitForRetryOrAbort(controller.signal, (r) => { resumeFn = r; });
       if (!resumed) break;
-      // User pressed retry; loop with same i.
       continue;
     }
 
@@ -180,12 +215,47 @@ export async function runAiAnnotate({ text, settings, mode, toast }: RunArgs) {
     publishProgress(i, null);
   }
 
-  useAppStore.getState().setBatchAiProgress(null);
-
   if (controller.signal.aborted) {
     toast('已中止 AI 处理', 'info');
     return false;
   }
   toast(mode === 'append' ? 'AI 追加完成 · 可从章节列表跳转' : 'AI 注音翻译完成', 'success');
   return true;
+}
+
+async function pump() {
+  if (pumping) return;
+  pumping = true;
+  try {
+    while (queue.length) {
+      const current = queue.shift()!;
+      refreshQueueAhead();
+      const ok = await runOneJob(current.job);
+      current.resolve(ok);
+    }
+  } finally {
+    // Clear progress only after the whole queue drains, so the user never
+    // sees the banner flash away between batches.
+    useAppStore.getState().setBatchAiProgress(null);
+    pumping = false;
+  }
+}
+
+/**
+ * Enqueue an AI annotate job. Runs sequentially with any prior job already
+ * in flight. Returns a promise that resolves to whether this specific job
+ * completed successfully.
+ */
+export function runAiAnnotate(job: RunArgs): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    queue.push({ job, resolve });
+    refreshQueueAhead();
+    // Kick off the pump if it isn't already running.
+    void pump();
+  });
+}
+
+/** Current number of batches waiting behind the active one (0 if idle). */
+export function getQueueDepth(): number {
+  return queue.length;
 }

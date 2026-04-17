@@ -6,6 +6,8 @@ import { useUiText } from '../hooks/useUiText';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { useEscClose } from '../hooks/useModalDismiss';
 import { DataExportImportSection } from './DataExportImportSection';
+import { TtsProviderSection } from './TtsProviderSection';
+import { getTtsVoices } from '../lib/ttsVoices';
 
 type TabId = 'quick' | 'audio' | 'display' | 'advanced';
 
@@ -258,6 +260,7 @@ export function SettingsModal({ onClose, initialTab }: { onClose: () => void; in
 
           {tab === 'audio' && (
             <div className="space-y-5">
+              <TtsProviderSection />
               <section className={panelClass}>
                 <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-blue-400">{text.settings.sequencePresetsTitle}</h3>
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -312,9 +315,9 @@ export function SettingsModal({ onClose, initialTab }: { onClose: () => void; in
                   <label className="space-y-2">
                     <span className="text-sm text-slate-300">{text.settings.japaneseVoice}</span>
                     <select value={settings.jpVoice} onChange={(e) => updateAndRecache({ jpVoice: e.target.value })} className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-200">
-                      <option value="ja-JP-NanamiNeural">{text.settings.voiceNanami}</option>
-                      <option value="ja-JP-KeitaNeural">{text.settings.voiceKeita}</option>
-                      <option value="ja-JP-AoiNeural">{text.settings.voiceAoi}</option>
+                      {getTtsVoices(settings.ttsProvider || 'edge', 'jp').map((v) => (
+                        <option key={v.id} value={v.id}>{v.label}</option>
+                      ))}
                     </select>
                   </label>
                   <div className="mt-4"><RateControl label={text.settings.japaneseRate} value={settings.jpRate} onChange={(value) => updateAndRecache({ jpRate: value })} /></div>
@@ -323,9 +326,9 @@ export function SettingsModal({ onClose, initialTab }: { onClose: () => void; in
                   <label className="space-y-2">
                     <span className="text-sm text-slate-300">{text.settings.chineseVoice}</span>
                     <select value={settings.chVoice} onChange={(e) => updateAndRecache({ chVoice: e.target.value })} className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-200">
-                      <option value="zh-CN-XiaoxiaoNeural">{text.settings.voiceXiaoxiao}</option>
-                      <option value="zh-CN-YunxiNeural">{text.settings.voiceYunxi}</option>
-                      <option value="zh-CN-YunjianNeural">{text.settings.voiceYunjian}</option>
+                      {getTtsVoices(settings.ttsProvider || 'edge', 'zh').map((v) => (
+                        <option key={v.id} value={v.id}>{v.label}</option>
+                      ))}
                     </select>
                   </label>
                   <div className="mt-4"><RateControl label={text.settings.chineseRate} value={settings.chRate} onChange={(value) => updateAndRecache({ chRate: value })} /></div>

@@ -21,9 +21,16 @@ export interface BackendSettings {
 
 export type Theme = 'dark' | 'light' | 'sepia' | 'auto';
 export type FuriganaMode = 'hidden' | 'bracket' | 'ruby';
+export type TtsProvider = 'edge' | 'qwen3' | 'doubao';
 
 export interface AppSettings extends BackendSettings {
   apiBase: string;
+  /** Which TTS backend `/api/tts-batch` should dispatch to. */
+  ttsProvider: TtsProvider;
+  /** Aliyun Bailian API key (used when ttsProvider === 'qwen3'). */
+  qwenApiKey: string;
+  /** doubao.com session cookie string (used when ttsProvider === 'doubao'). */
+  doubaoCookie: string;
   cacheAheadEntries: number;
   showJP: boolean;
   showZH: boolean;

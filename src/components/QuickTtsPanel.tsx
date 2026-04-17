@@ -5,6 +5,7 @@ import { useUiText } from '../hooks/useUiText';
 import { runAiAnnotate, AI_MAX_CHARS } from '../services/aiAnnotate';
 import { stripBracketReadings } from '../lib/textCleanup';
 import { splitOversizeTxt, downloadSplits } from '../lib/txtFileSplit';
+import { getTtsVoices, getDefaultVoice, getProviderMime } from '../lib/ttsVoices';
 import { SettingsModal } from './SettingsModal';
 import { useToast } from './Toast';
 
@@ -28,27 +29,7 @@ interface VoiceOption {
   name: string;
 }
 
-const VOICES: Record<'ja' | 'zh', VoiceOption[]> = {
-  ja: [
-    { id: 'ja-JP-NanamiNeural', name: 'Nanami · 女声 / 標準' },
-    { id: 'ja-JP-AoiNeural', name: 'Aoi · 女声 / 清亮' },
-    { id: 'ja-JP-MayuNeural', name: 'Mayu · 女声 / 温柔' },
-    { id: 'ja-JP-ShioriNeural', name: 'Shiori · 女声 / 年轻' },
-    { id: 'ja-JP-KeitaNeural', name: 'Keita · 男声 / 標準' },
-    { id: 'ja-JP-DaichiNeural', name: 'Daichi · 男声 / 成熟' },
-    { id: 'ja-JP-NaokiNeural', name: 'Naoki · 男声 / 新闻' },
-  ],
-  zh: [
-    { id: 'zh-CN-XiaoxiaoNeural', name: '晓晓 · 女声 / 标准' },
-    { id: 'zh-CN-XiaoyiNeural', name: '晓伊 · 女声 / 活泼' },
-    { id: 'zh-CN-YunxiNeural', name: '云希 · 男声 / 年轻' },
-    { id: 'zh-CN-YunjianNeural', name: '云健 · 男声 / 成熟' },
-    { id: 'zh-CN-YunyangNeural', name: '云扬 · 男声 / 新闻' },
-    { id: 'zh-CN-XiaohanNeural', name: '晓涵 · 女声 / 温暖' },
-    { id: 'zh-TW-HsiaoChenNeural', name: '曉臻 · 台湾女声' },
-    { id: 'zh-HK-HiuMaanNeural', name: '曉曼 · 粤语女声' },
-  ],
-};
+// Voice lists moved into ../lib/ttsVoices.ts and selected by the active provider.
 
 const RATE_PRESETS = [0.8, 1.0, 1.2, 1.5];
 const STORAGE_KEY = 'lanobe-quick-tts-state-v1';
@@ -131,14 +112,20 @@ export function QuickTtsPanel() {
     [lang, text],
   );
 
-  const voiceOptions = VOICES[effectiveLang];
+  const provider = settings.ttsProvider || 'edge';
+  const voiceOptions = useMemo(
+    () => getTtsVoices(provider, effectiveLang === 'ja' ? 'jp' : 'zh'),
+    [provider, effectiveLang],
+  );
 
-  // Keep voice consistent with effectiveLang
+  // Keep voice consistent with the active provider + language combo.
   useEffect(() => {
     if (!voiceOptions.some((v) => v.id === voice)) {
-      setVoice(voiceOptions[0].id);
+      const fallback = getDefaultVoice(provider, effectiveLang === 'ja' ? 'jp' : 'zh');
+      const pick = voiceOptions.find((v) => v.id === fallback)?.id ?? voiceOptions[0]?.id;
+      if (pick) setVoice(pick);
     }
-  }, [voiceOptions, voice]);
+  }, [voiceOptions, voice, provider, effectiveLang]);
 
   // Cleanup blob URL when replaced or unmounted
   useEffect(() => {
@@ -178,10 +165,18 @@ export function QuickTtsPanel() {
     try {
       const apiBase = resolveApiBase(settings.apiBase);
       const t0 = performance.now();
+      const auth = {
+        qwenApiKey: settings.qwenApiKey || '',
+        doubaoCookie: settings.doubaoCookie || '',
+      };
       const res = await fetch(`${apiBase}/api/tts-batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requests: [{ text: ttsText, voice, rate }] }),
+        body: JSON.stringify({
+          requests: [{ text: ttsText, voice, rate }],
+          provider,
+          auth,
+        }),
         signal: controller.signal,
       });
 
@@ -198,7 +193,7 @@ export function QuickTtsPanel() {
       const binary = atob(audioBase64);
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const blob = new Blob([bytes], { type: 'audio/mpeg' });
+      const blob = new Blob([bytes], { type: getProviderMime(provider) });
 
       if (audioUrl && audioUrl.startsWith('blob:')) URL.revokeObjectURL(audioUrl);
       const url = URL.createObjectURL(blob);

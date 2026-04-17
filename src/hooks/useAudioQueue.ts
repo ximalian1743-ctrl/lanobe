@@ -2,6 +2,7 @@ import { useEffect, useRef, type MutableRefObject } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { AppSettings, Entry } from '../types';
 import { cleanWordJapaneseText, stripBracketReadings } from '../lib/textCleanup';
+import { getProviderMime } from '../lib/ttsVoices';
 
 interface PlaylistItem {
   type: 'tts' | 'pause';
@@ -251,6 +252,12 @@ export function useAudioQueue() {
 
       if (ttsRequests.length > 0) {
         const apiBase = currentSettings.apiBase === 'https://api.ximalian.cc.cd' ? '' : currentSettings.apiBase;
+        const provider = currentSettings.ttsProvider || 'edge';
+        const mime = getProviderMime(provider);
+        const auth = {
+          qwenApiKey: currentSettings.qwenApiKey || '',
+          doubaoCookie: currentSettings.doubaoCookie || '',
+        };
         const MAX_RETRIES = 3;
         let attempt = 0;
         let success = false;
@@ -261,7 +268,7 @@ export function useAudioQueue() {
             const res = await fetch(`${apiBase}/api/tts-batch`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ requests: ttsRequests }),
+              body: JSON.stringify({ requests: ttsRequests, provider, auth }),
             });
 
             if (!res.ok) {
@@ -275,7 +282,7 @@ export function useAudioQueue() {
             for (const result of results) {
               if (!result?.audioBase64) continue;
               const key = `${result.text}|${result.voice}|${result.rate}`;
-              urlMap.set(key, `data:audio/mp3;base64,${result.audioBase64}`);
+              urlMap.set(key, `data:${mime};base64,${result.audioBase64}`);
             }
 
             // Any missing audioUrl means a silent dropout during playback; retry instead of caching partial.

@@ -7,6 +7,9 @@ import { getPageIndexForEntry } from '../lib/pagination';
 
 const defaultSettings: AppSettings = {
   apiBase: '',
+  ttsProvider: 'edge',
+  qwenApiKey: '',
+  doubaoCookie: '',
   cacheAheadEntries: 6,
   showJP: true,
   showZH: true,

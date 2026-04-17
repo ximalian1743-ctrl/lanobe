@@ -51,10 +51,32 @@ jobs:
         uses: azure/cli@v2
         with:
           inlineScript: |
+            # --track-status is deliberately left off: polling for status
+            # hits the scm 504 gateway timeout on slow Kudu warm-ups, which
+            # fails the pipeline even though the zip sync actually succeeds.
+            # Post-deploy smoke step below catches real regressions.
             az webapp deploy \
               --resource-group "$AZURE_RESOURCE_GROUP" \
               --name "$AZURE_WEBAPP_NAME" \
               --src-path deploy.zip \
               --type zip \
               --restart true \
-              --track-status true
+              --async false
+
+      - name: Smoke test the deployed site
+        shell: bash
+        run: |
+          set -e
+          URL="https://${AZURE_WEBAPP_NAME}.azurewebsites.net/"
+          echo "Waiting for $URL to return 200…"
+          for i in $(seq 1 24); do
+            code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 20 "$URL" || echo "000")
+            echo "attempt $i: HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "Deployment verified."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Smoke test failed — deployment may have crashed."
+          exit 1

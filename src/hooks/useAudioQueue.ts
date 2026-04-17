@@ -273,15 +273,29 @@ export function useAudioQueue() {
             const urlMap = new Map<string, string>();
 
             for (const result of results) {
+              if (!result?.audioBase64) continue;
               const key = `${result.text}|${result.voice}|${result.rate}`;
               urlMap.set(key, `data:audio/mp3;base64,${result.audioBase64}`);
             }
 
+            // Any missing audioUrl means a silent dropout during playback; retry instead of caching partial.
+            const missing: string[] = [];
             for (const item of playlist) {
               if (item.type === 'tts') {
                 const key = `${item.text}|${item.voice}|${item.rate}`;
-                item.audioUrl = urlMap.get(key);
+                const url = urlMap.get(key);
+                if (!url) {
+                  missing.push(key);
+                  continue;
+                }
+                item.audioUrl = url;
               }
+            }
+
+            if (missing.length > 0) {
+              throw new Error(
+                `TTS batch incomplete: ${missing.length} item(s) missing audioBase64`,
+              );
             }
 
             success = true;

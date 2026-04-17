@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
-    "test:unit": "tsx --test tests/unit/textCleanup.test.ts",
+    "test:unit": "tsx --test tests/unit/textCleanup.test.ts tests/unit/jpChunker.test.ts",
     "test:e2e": "playwright test",
     "validate:books": "tsx scripts/validate-built-in-books.mjs",
     "lint": "tsc --noEmit",

@@ -3,6 +3,7 @@ import { ChevronDown, Download, Loader2, Play, Sparkles, Volume2 } from 'lucide-
 import { useAppStore } from '../store/useAppStore';
 import { useUiText } from '../hooks/useUiText';
 import { runAiAnnotate } from '../services/aiAnnotate';
+import { stripBracketReadings } from '../lib/textCleanup';
 import { useToast } from './Toast';
 
 type LangKey = 'auto' | 'ja' | 'zh';
@@ -140,6 +141,14 @@ export function QuickTtsPanel() {
       return;
     }
 
+    // TTS engine pronounces bracket furigana literally (`漢[かん]字` →
+    // "漢 かん 字"), so strip them to match the main reader's behaviour.
+    const ttsText = stripBracketReadings(value);
+    if (!ttsText) {
+      setStatus(t.errEmpty);
+      return;
+    }
+
     inflightRef.current?.abort();
     const controller = new AbortController();
     inflightRef.current = controller;
@@ -153,7 +162,7 @@ export function QuickTtsPanel() {
       const res = await fetch(`${apiBase}/api/tts-batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requests: [{ text: value, voice, rate }] }),
+        body: JSON.stringify({ requests: [{ text: ttsText, voice, rate }] }),
         signal: controller.signal,
       });
 
@@ -344,11 +353,11 @@ export function QuickTtsPanel() {
               type="button"
               onClick={handleAiAnnotate}
               disabled={aiBusy || busy || text.trim().length === 0}
-              title="调用 AI 将整段文本切分为句子，并为每句生成平假名注音与中文翻译，然后加载到阅读器播放"
+              title={t.aiAnnotateTooltip}
               className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/15 px-4 py-2 text-xs font-bold text-amber-100 transition-all duration-150 hover:border-amber-300/70 hover:bg-amber-500/25 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {aiBusy ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-              {aiBusy ? 'AI 处理中…' : 'AI 注音 + 翻译'}
+              {aiBusy ? t.aiAnnotateBusy : t.aiAnnotateLabel}
             </button>
             <button
               type="button"

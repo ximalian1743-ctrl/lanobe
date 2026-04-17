@@ -7,6 +7,7 @@ import { ReaderPage } from './pages/ReaderPage';
 import { FreeReaderPage } from './pages/FreeReaderPage';
 import { DriveModePage } from './pages/DriveModePage';
 import { ToastProvider } from './components/Toast';
+import { VersionBadge } from './components/VersionBadge';
 import { useAppStore } from './store/useAppStore';
 
 function ThemeApplier() {
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
+      <VersionBadge />
     </ToastProvider>
   );
 }

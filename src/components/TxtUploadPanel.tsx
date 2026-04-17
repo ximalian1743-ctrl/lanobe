@@ -20,20 +20,22 @@ export function TxtUploadPanel() {
   const [copied, setCopied] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  const readFile = (file: File) => {
-    if (!file.name.endsWith('.txt')) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const content = ev.target?.result as string;
-      if (content) loadContent(content);
-    };
-    reader.readAsText(file);
+  const readFiles = async (fileList: File[]) => {
+    const txtFiles = fileList.filter((f) => f.name.toLowerCase().endsWith('.txt'));
+    if (txtFiles.length === 0) return;
+    // Read all files in parallel, concatenate with a blank line so parseTxt
+    // treats them as independent block sequences. skipAi is critical here —
+    // users upload pre-formatted content and don't want to sit through
+    // chapter-gen AI calls that can take minutes on large volumes.
+    const contents = await Promise.all(txtFiles.map((f) => f.text()));
+    const joined = contents.map((c) => c.trim()).filter(Boolean).join('\n\n');
+    if (joined) loadContent(joined, { skipAi: true });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) readFile(file);
-    // Reset so same file can be re-selected
+    const files = e.target.files;
+    if (files && files.length > 0) void readFiles(Array.from(files));
+    // Reset so same file(s) can be re-selected
     e.target.value = '';
   };
 
@@ -60,8 +62,8 @@ export function TxtUploadPanel() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) readFile(file);
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) void readFiles(Array.from(files));
   };
 
   return (
@@ -92,7 +94,8 @@ export function TxtUploadPanel() {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".txt"
+          accept=".txt,text/plain"
+          multiple
           className="sr-only"
           onChange={handleFileChange}
         />

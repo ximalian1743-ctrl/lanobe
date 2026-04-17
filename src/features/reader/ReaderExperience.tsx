@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, UploadCloud } from 'lucide-react';
+import { FileUp, Loader2, UploadCloud } from 'lucide-react';
 import { AiExplainModal } from '../../components/AiExplainModal';
 import { AiAppendModal } from '../../components/AiAppendModal';
 import { EntryList } from '../../components/EntryList';
@@ -52,6 +52,8 @@ export function ReaderExperience({
     entries,
     currentIndex,
     setCurrentIndex,
+    setEntries,
+    setChapters,
     isFetching,
     audioCache,
     settings,
@@ -176,18 +178,18 @@ export function ReaderExperience({
     setIsDragging(false);
   }, []);
   const handleDrop = useCallback(
-    (event: React.DragEvent) => {
+    async (event: React.DragEvent) => {
       event.preventDefault();
       setIsDragging(false);
-      const file = event.dataTransfer.files?.[0];
-      if (file && file.name.endsWith('.txt')) {
-        const reader = new FileReader();
-        reader.onload = (loadEvent) => {
-          const textContent = loadEvent.target?.result as string;
-          loadContent(textContent);
-        };
-        reader.readAsText(file);
-      }
+      const fileList = event.dataTransfer.files;
+      if (!fileList || fileList.length === 0) return;
+      const txtFiles: File[] = Array.from(fileList as ArrayLike<File>).filter(
+        (f) => f.name.toLowerCase().endsWith('.txt'),
+      );
+      if (txtFiles.length === 0) return;
+      const contents = await Promise.all(txtFiles.map((f) => f.text()));
+      const joined = contents.map((c) => c.trim()).filter(Boolean).join('\n\n');
+      if (joined) loadContent(joined, { skipAi: true });
     },
     [loadContent],
   );
@@ -262,6 +264,22 @@ export function ReaderExperience({
             ))}
         </div>
       </div>
+
+      {showEmptyUpload && entries.length > 0 ? (
+        <button
+          type="button"
+          onClick={() => {
+            setIsPlaying(false);
+            setEntries([]);
+            setChapters([]);
+          }}
+          title="清空当前 TXT，返回上传界面"
+          className="fixed bottom-3 left-3 z-[110] inline-flex items-center gap-1.5 rounded-full border border-slate-700/60 bg-slate-950/80 px-3 py-1.5 text-[11px] font-semibold text-slate-200 shadow-lg backdrop-blur-sm transition-colors hover:border-blue-400/60 hover:bg-slate-900 hover:text-white"
+        >
+          <FileUp size={13} />
+          换新 TXT
+        </button>
+      ) : null}
 
       {/* Floating mini-player replaces the old permanent Controls bar */}
       <MiniPlayer

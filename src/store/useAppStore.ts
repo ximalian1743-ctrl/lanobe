@@ -174,6 +174,13 @@ export interface PersistedAppState {
   notes?: Record<string, NoteEntry>;
   readingTime?: Record<string, number>;
   aiExplanations?: Record<string, AiExplanationCache>;
+  /** Snapshot of the current reader session (entries + chapters + cursor).
+   *  Restores mid-read custom uploads and AI-annotated sessions after a
+   *  browser close. Built-in book loads overwrite on open via setEntries. */
+  entries?: Entry[];
+  chapters?: Chapter[];
+  currentIndex?: number;
+  readerPageIndex?: number;
 }
 
 export function buildEntryKey(slug: string, volumeId: string, entryIndex: number): string {
@@ -383,6 +390,10 @@ export const useAppStore = create<AppState>()(
         notes: state.notes,
         readingTime: state.readingTime,
         aiExplanations: state.aiExplanations,
+        entries: state.entries,
+        chapters: state.chapters,
+        currentIndex: state.currentIndex,
+        readerPageIndex: state.readerPageIndex,
       }),
       merge: (persistedState: unknown, currentState) => {
         const persisted = (persistedState ?? {}) as PersistedAppState;
@@ -397,6 +408,10 @@ export const useAppStore = create<AppState>()(
           notes: persisted.notes ?? currentState.notes,
           readingTime: persisted.readingTime ?? currentState.readingTime,
           aiExplanations: persisted.aiExplanations ?? currentState.aiExplanations,
+          entries: persisted.entries ?? currentState.entries,
+          chapters: persisted.chapters ?? currentState.chapters,
+          currentIndex: persisted.currentIndex ?? currentState.currentIndex,
+          readerPageIndex: persisted.readerPageIndex ?? currentState.readerPageIndex,
           settings: (() => {
             const merged = { ...currentState.settings, ...(persisted.settings || {}) };
             // Migrate legacy showFurigana + rubyFurigana → furiganaMode

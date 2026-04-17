@@ -2,9 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Download, Loader2, Play, Sparkles, Volume2 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useUiText } from '../hooks/useUiText';
-import { annotateTextWithAi } from '../services/aiService';
-import { chunkJapaneseText } from '../lib/jpChunker';
-import { Entry } from '../types';
+import { runAiAnnotate } from '../services/aiAnnotate';
 import { useToast } from './Toast';
 
 type LangKey = 'auto' | 'ja' | 'zh';
@@ -39,8 +37,6 @@ const VOICES: Record<'ja' | 'zh', VoiceOption[]> = {
 const RATE_PRESETS = [0.8, 1.0, 1.2, 1.5];
 const STORAGE_KEY = 'lanobe-quick-tts-state-v1';
 const MAX_CHARS = 2000;
-const AI_MAX_CHARS = 20000;
-const AI_CHUNK_CHARS = 800;
 
 function detectLang(text: string): 'ja' | 'zh' {
   if (/[\u3040-\u309f\u30a0-\u30ff]/.test(text)) return 'ja';
@@ -223,90 +219,14 @@ export function QuickTtsPanel() {
 
   const handleAiAnnotate = async () => {
     if (aiBusy) return;
-    const value = text.trim();
-    if (!value) {
-      toast('请输入日语文本', 'error');
-      return;
-    }
-    if (value.length > AI_MAX_CHARS) {
-      toast(`文本过长（AI 注音最多 ${AI_MAX_CHARS} 字）`, 'error');
-      return;
-    }
-    const apiKey = settings.aiApiKey.trim();
-    if (!apiKey) {
-      toast('请先在设置中填入 AI API 密钥', 'error');
-      return;
-    }
-
-    const chunks = chunkJapaneseText(value, AI_CHUNK_CHARS);
-    if (!chunks.length) {
-      toast('未识别到可处理的文本', 'error');
-      return;
-    }
-
-    // Stop any ongoing TTS to avoid audio fighting with the reader.
     inflightRef.current?.abort();
     audioRef.current?.pause();
-
-    const controller = new AbortController();
-    const store = useAppStore.getState();
-    const label = 'AI 分句 · 注音 · 翻译';
-
-    store.setEntries([]);
-    store.setBatchAiProgress({
-      label,
-      done: 0,
-      total: chunks.length,
-      onCancel: () => controller.abort(),
+    await runAiAnnotate({
+      text,
+      settings,
+      mode: 'replace',
+      toast,
     });
-
-    try {
-      for (let i = 0; i < chunks.length; i++) {
-        if (controller.signal.aborted) break;
-        const annotated = await annotateTextWithAi({
-          text: chunks[i],
-          apiKey,
-          apiBase: settings.aiApiBase,
-          model: settings.aiModel,
-          backendApiBase: settings.apiBase,
-          signal: controller.signal,
-        });
-        const newEntries: Entry[] = annotated.map((a) => ({
-          id: '',
-          jp: a.jp,
-          ch: a.ch,
-          words: [],
-        }));
-        const s = useAppStore.getState();
-        if (i === 0) {
-          s.setEntries(
-            newEntries.map((e, idx) => ({ ...e, id: `entry-${idx}` })),
-          );
-        } else {
-          s.appendEntries(newEntries);
-        }
-        s.setBatchAiProgress({
-          label,
-          done: i + 1,
-          total: chunks.length,
-          onCancel: () => controller.abort(),
-        });
-      }
-      if (!controller.signal.aborted) {
-        toast('AI 注音翻译完成 · 可开始播放', 'success');
-      } else {
-        toast('已中止 AI 处理', 'info');
-      }
-    } catch (err) {
-      if ((err as Error).name === 'AbortError') {
-        toast('已中止 AI 处理', 'info');
-      } else {
-        console.error('AI annotate error:', err);
-        toast((err as Error).message || 'AI 处理失败', 'error');
-      }
-    } finally {
-      useAppStore.getState().setBatchAiProgress(null);
-    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

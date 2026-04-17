@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, UploadCloud } from 'lucide-react';
 import { AiExplainModal } from '../../components/AiExplainModal';
+import { AiAppendModal } from '../../components/AiAppendModal';
 import { EntryList } from '../../components/EntryList';
 import { Header } from '../../components/Header';
 import { SettingsModal } from '../../components/SettingsModal';
@@ -37,6 +38,7 @@ export function ReaderExperience({
 }: ReaderExperienceProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [showAiExplain, setShowAiExplain] = useState(false);
+  const [showAiAppend, setShowAiAppend] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showChapters, setShowChapters] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -267,11 +269,13 @@ export function ReaderExperience({
         onOpenSettings={() => setShowSettings(true)}
         onOpenAi={handleOpenAiExplain}
         onOpenChapters={() => setShowChapters(true)}
+        onOpenAiAppend={() => setShowAiAppend(true)}
       />
       <ScrollToTopButton targetRef={scrollRef} />
 
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       {showAiExplain && <AiExplainModal onClose={() => setShowAiExplain(false)} slug={slug} volumeId={volumeId} />}
+      {showAiAppend && <AiAppendModal onClose={() => setShowAiAppend(false)} />}
       {showBookmarks && <BookmarksModal slug={slug} volumeId={volumeId} onClose={() => setShowBookmarks(false)} />}
       {showChapters && (
         <ChaptersModal slug={slug} volumeId={volumeId} onClose={() => setShowChapters(false)} />

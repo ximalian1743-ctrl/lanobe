@@ -5,6 +5,7 @@ import {
   LocateFixed,
   Pause,
   Play,
+  Plus,
   Settings,
   SkipBack,
   SkipForward,
@@ -16,6 +17,7 @@ interface MiniPlayerProps {
   onOpenSettings: () => void;
   onOpenAi: () => void;
   onOpenChapters?: () => void;
+  onOpenAiAppend?: () => void;
   hidden?: boolean;
 }
 
@@ -25,7 +27,7 @@ interface MiniPlayerProps {
  * settings, AI in a horizontal pill. Keeps reader content free of a
  * permanent chrome bar.
  */
-export function MiniPlayer({ onOpenSettings, onOpenAi, onOpenChapters, hidden }: MiniPlayerProps) {
+export function MiniPlayer({ onOpenSettings, onOpenAi, onOpenChapters, onOpenAiAppend, hidden }: MiniPlayerProps) {
   const [expanded, setExpanded] = useState(false);
   const {
     isPlaying,
@@ -95,6 +97,16 @@ export function MiniPlayer({ onOpenSettings, onOpenAi, onOpenChapters, hidden }:
               title="AI 讲解"
             >
               <Sparkles size={16} />
+            </button>
+          ) : null}
+          {hasAi && onOpenAiAppend ? (
+            <button
+              type="button"
+              onClick={onOpenAiAppend}
+              className="flex h-9 w-9 items-center justify-center rounded-full text-amber-200 hover:bg-slate-800"
+              title="AI 追加段落 · 继续粘贴更多日文"
+            >
+              <Plus size={16} />
             </button>
           ) : null}
           <button

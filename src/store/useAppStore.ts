@@ -29,10 +29,17 @@ const defaultSettings: AppSettings = {
   pauseBetweenWordsMs: 200,
   pauseBetweenEntriesMs: 350,
   entryConcurrency: 3,
-  aiApiKey: '',
-  aiApiBase: 'https://sub.jlypx.de/v1',
-  aiModel: 'gpt-5.4',
+  aiApiKey: 'gg-gcli-uR-S9ny0D8h0pModFr4G0oqcQt-o4HqzDVphLDDUSD8',
+  aiApiBase: 'https://gcli.ggchan.dev/v1',
+  aiModel: 'agy-claude-sonnet-4-6',
 };
+
+// Settings matching any of these legacy defaults get force-migrated to the
+// gcli / sonnet defaults above. Single-user deployment, so we overwrite
+// unconfigured or stock values rather than leaving them stranded in
+// localStorage.
+const LEGACY_AI_BASES = ['', 'https://sub.jlypx.de/v1'];
+const LEGACY_AI_MODELS = ['', 'gpt-5.4'];
 
 interface AppState {
   uiLanguage: UiLanguage;
@@ -394,6 +401,12 @@ export const useAppStore = create<AppState>()(
               if (!merged.showFurigana) merged.furiganaMode = 'hidden';
               else if (merged.rubyFurigana === false) merged.furiganaMode = 'bracket';
               else merged.furiganaMode = 'ruby';
+            }
+            // Migrate stale AI provider settings to current gcli/sonnet defaults.
+            if (!merged.aiApiKey?.trim() || LEGACY_AI_BASES.includes(merged.aiApiBase) || LEGACY_AI_MODELS.includes(merged.aiModel)) {
+              merged.aiApiKey = defaultSettings.aiApiKey;
+              merged.aiApiBase = defaultSettings.aiApiBase;
+              merged.aiModel = defaultSettings.aiModel;
             }
             return merged;
           })(),

@@ -231,12 +231,15 @@ export async function annotateTextWithAi({
 
 Task for the passage below:
 1. Split it into natural sentences. Split on 。！？!? and between quotes/paragraphs. Preserve the original punctuation inside each sentence.
-2. For EVERY kanji word, append its hiragana reading in square brackets right after the word, e.g. 漢字[かんじ]. Group consecutive kanji of a single word together (食[た]べる, not 食[た]べ). Do not bracket pure kana.
-3. For each sentence, provide an accurate, natural Simplified Chinese translation.
+2. Furigana: append hiragana reading in square brackets after every kanji word. Treat each compound word as ONE bracket unit — NEVER split a compound across brackets.
+   CORRECT:   彼女[かのじょ], 電線[でんせん], 漢字[かんじ], 食[た]べる, 先生[せんせい], 今日[きょう]
+   WRONG:     彼[かの]女[じょ], 電[でん]線[せん], 食[た]べ, 先[せん]生[せい]
+   Do not bracket pure kana. Do not bracket ASCII/numbers.
+3. Chinese: for each sentence, provide an accurate, natural Simplified Chinese translation.
 4. Do not add sentences or content that is not in the input. Keep the original order.
 
 Return JSON ONLY, shape:
-{"entries":[{"jp":"漢字[かんじ]の本[ほん]。","ch":"汉字的书。"}, ...]}
+{"entries":[{"jp":"彼女[かのじょ]は本[ほん]を読[よ]む。","ch":"她读书。"}, ...]}
 
 Passage:
 <<<

@@ -1,11 +1,15 @@
-import { annotateTextWithAi } from './aiService';
+import { annotateTextWithAi, AnnotatedEntry } from './aiService';
 import { chunkJapaneseText } from '../lib/jpChunker';
 import { useAppStore } from '../store/useAppStore';
 import { AppSettings, Entry } from '../types';
 
 export const AI_MAX_CHARS = 20000;
 export const AI_CHUNK_CHARS = 800;
-const PER_CHUNK_RETRIES = 1;
+
+/** Attempts per chunk before entering the "stuck" state that lets the user press retry. */
+const PER_CHUNK_ATTEMPTS = 3;
+/** Backoff between automatic retries: 1s, 2s. */
+const BACKOFF_MS = [1000, 2000];
 
 type ToastFn = (msg: string, kind?: 'success' | 'error' | 'info') => void;
 
@@ -20,10 +24,70 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function buildLabel(doneChunks: number, totalChunks: number, mode: 'replace' | 'append') {
+function runLabel(doneChunks: number, totalChunks: number, mode: 'replace' | 'append') {
   const prefix = mode === 'append' ? 'AI 追加段落' : 'AI 分句处理';
   if (doneChunks >= totalChunks) return `${prefix} · 完成`;
   return `${prefix} · 处理第 ${Math.min(doneChunks + 1, totalChunks)} / ${totalChunks} 段`;
+}
+
+function stuckLabel(failedIndex: number, totalChunks: number) {
+  return `第 ${failedIndex + 1} / ${totalChunks} 段失败 · 点击横幅「重试」`;
+}
+
+async function attemptChunkWithBackoff(
+  text: string,
+  settings: AppSettings,
+  signal: AbortSignal,
+  chunkIdx: number,
+): Promise<AnnotatedEntry[] | null> {
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt < PER_CHUNK_ATTEMPTS; attempt++) {
+    if (signal.aborted) return null;
+    try {
+      console.info(`[ai-annotate] chunk ${chunkIdx + 1} attempt ${attempt + 1}/${PER_CHUNK_ATTEMPTS}`);
+      return await annotateTextWithAi({
+        text,
+        apiKey: settings.aiApiKey,
+        apiBase: settings.aiApiBase,
+        model: settings.aiModel,
+        backendApiBase: settings.apiBase,
+        signal,
+      });
+    } catch (err) {
+      lastErr = err;
+      if ((err as Error)?.name === 'AbortError') return null;
+      console.warn(`[ai-annotate] chunk ${chunkIdx + 1} attempt ${attempt + 1} failed:`, err);
+      const backoff = BACKOFF_MS[attempt];
+      if (backoff && attempt < PER_CHUNK_ATTEMPTS - 1) await sleep(backoff);
+    }
+  }
+  console.error(`[ai-annotate] chunk ${chunkIdx + 1} exhausted ${PER_CHUNK_ATTEMPTS} attempts:`, lastErr);
+  return null;
+}
+
+/**
+ * Wait for either a user-triggered retry signal or the controller abort.
+ * Returns true if retry was signalled, false if aborted.
+ */
+function waitForRetryOrAbort(
+  signal: AbortSignal,
+  attachResume: (resolve: () => void) => void,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (signal.aborted) {
+      resolve(false);
+      return;
+    }
+    const onAbort = () => {
+      signal.removeEventListener('abort', onAbort);
+      resolve(false);
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    attachResume(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve(true);
+    });
+  });
 }
 
 export async function runAiAnnotate({ text, settings, mode, toast }: RunArgs) {
@@ -47,63 +111,47 @@ export async function runAiAnnotate({ text, settings, mode, toast }: RunArgs) {
     return false;
   }
 
+  const total = chunks.length;
   const controller = new AbortController();
   const store = useAppStore.getState();
-  const total = chunks.length;
-  let done = 0;
-  let failed = 0;
+  const batchStartIndex = mode === 'replace' ? 0 : store.entries.length;
+  let chapterAdded = false;
+  let resumeFn: (() => void) | null = null;
+
+  const publishProgress = (done: number, stuckIndex: number | null) => {
+    useAppStore.getState().setBatchAiProgress({
+      label: stuckIndex !== null ? stuckLabel(stuckIndex, total) : runLabel(done, total, mode),
+      done,
+      total,
+      onCancel: () => controller.abort(),
+      onRetry: stuckIndex !== null ? () => {
+        const fn = resumeFn;
+        resumeFn = null;
+        fn?.();
+      } : undefined,
+    });
+  };
 
   if (mode === 'replace') {
     store.setEntries([]);
   }
-  store.setBatchAiProgress({
-    label: buildLabel(done, total, mode),
-    done,
-    total,
-    onCancel: () => controller.abort(),
-  });
+  publishProgress(0, null);
 
-  for (let i = 0; i < chunks.length; i++) {
+  let i = 0;
+  while (i < total) {
     if (controller.signal.aborted) break;
 
-    let lastErr: unknown = null;
-    let annotated: { jp: string; ch: string }[] | null = null;
-    for (let attempt = 0; attempt <= PER_CHUNK_RETRIES; attempt++) {
-      if (controller.signal.aborted) break;
-      try {
-        console.info(`[ai-annotate] chunk ${i + 1}/${total} attempt ${attempt + 1} (${chunks[i].length} chars)`);
-        annotated = await annotateTextWithAi({
-          text: chunks[i],
-          apiKey: settings.aiApiKey,
-          apiBase: settings.aiApiBase,
-          model: settings.aiModel,
-          backendApiBase: settings.apiBase,
-          signal: controller.signal,
-        });
-        break;
-      } catch (err) {
-        lastErr = err;
-        if ((err as Error)?.name === 'AbortError') break;
-        console.warn(`[ai-annotate] chunk ${i + 1} attempt ${attempt + 1} failed:`, err);
-        if (attempt < PER_CHUNK_RETRIES) await sleep(1500 * (attempt + 1));
-      }
-    }
+    publishProgress(i, null);
+    const annotated = await attemptChunkWithBackoff(chunks[i], settings, controller.signal, i);
 
     if (controller.signal.aborted) break;
 
     if (!annotated) {
-      failed++;
-      const msg = (lastErr as Error)?.message || '未知错误';
-      console.error(`[ai-annotate] chunk ${i + 1} gave up:`, lastErr);
-      toast(`第 ${i + 1} / ${total} 段失败 · ${msg}`, 'error');
-      // Still advance so later chunks process — don't abort the whole run.
-      done++;
-      useAppStore.getState().setBatchAiProgress({
-        label: buildLabel(done, total, mode),
-        done,
-        total,
-        onCancel: () => controller.abort(),
-      });
+      toast(`第 ${i + 1} / ${total} 段失败，横幅上点「重试」继续`, 'error');
+      publishProgress(i, i);
+      const resumed = await waitForRetryOrAbort(controller.signal, (r) => { resumeFn = r; });
+      if (!resumed) break;
+      // User pressed retry; loop with same i.
       continue;
     }
 
@@ -119,13 +167,17 @@ export async function runAiAnnotate({ text, settings, mode, toast }: RunArgs) {
     } else {
       s.appendEntries(newEntries);
     }
-    done++;
-    s.setBatchAiProgress({
-      label: buildLabel(done, total, mode),
-      done,
-      total,
-      onCancel: () => controller.abort(),
-    });
+
+    if (!chapterAdded) {
+      const after = useAppStore.getState();
+      const num = after.chapters.length + 1;
+      const title = mode === 'replace' ? `段落 ${num}` : `追加段落 ${num}`;
+      after.setChapters([...after.chapters, { title, index: batchStartIndex }]);
+      chapterAdded = true;
+    }
+
+    i++;
+    publishProgress(i, null);
   }
 
   useAppStore.getState().setBatchAiProgress(null);
@@ -134,14 +186,6 @@ export async function runAiAnnotate({ text, settings, mode, toast }: RunArgs) {
     toast('已中止 AI 处理', 'info');
     return false;
   }
-  if (failed === total) {
-    toast('AI 处理全部失败', 'error');
-    return false;
-  }
-  if (failed > 0) {
-    toast(`AI 处理完成 · ${failed} 段失败`, 'info');
-  } else {
-    toast(mode === 'append' ? 'AI 追加完成' : 'AI 注音翻译完成 · 可开始播放', 'success');
-  }
+  toast(mode === 'append' ? 'AI 追加完成 · 可从章节列表跳转' : 'AI 注音翻译完成', 'success');
   return true;
 }

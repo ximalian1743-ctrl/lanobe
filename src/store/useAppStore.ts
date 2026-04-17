@@ -31,15 +31,14 @@ const defaultSettings: AppSettings = {
   entryConcurrency: 3,
   aiApiKey: 'gg-gcli-uR-S9ny0D8h0pModFr4G0oqcQt-o4HqzDVphLDDUSD8',
   aiApiBase: 'https://gcli.ggchan.dev/v1',
-  aiModel: 'agy-claude-sonnet-4-6',
+  aiModel: 'gemini-3.1-pro-preview',
 };
 
 // Settings matching any of these legacy defaults get force-migrated to the
-// gcli / sonnet defaults above. Single-user deployment, so we overwrite
-// unconfigured or stock values rather than leaving them stranded in
-// localStorage.
+// gcli defaults above. Single-user deployment, so we overwrite unconfigured
+// or stock values rather than leaving them stranded in localStorage.
 const LEGACY_AI_BASES = ['', 'https://sub.jlypx.de/v1'];
-const LEGACY_AI_MODELS = ['', 'gpt-5.4'];
+const LEGACY_AI_MODELS = ['', 'gpt-5.4', 'agy-claude-sonnet-4-6'];
 
 interface AppState {
   uiLanguage: UiLanguage;
@@ -105,6 +104,8 @@ export interface BatchAiProgress {
   total: number;
   /** When non-null, clicking the indicator should call this to abort. */
   onCancel?: () => void;
+  /** When non-null, orchestrator is stuck waiting for user to re-trigger the failed chunk. */
+  onRetry?: () => void;
 }
 
 interface BuiltInBookProgress {

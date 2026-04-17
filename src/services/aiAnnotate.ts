@@ -5,8 +5,10 @@ import { AppSettings, Entry } from '../types';
 
 export const AI_MAX_CHARS = 20000;
 export const AI_CHUNK_CHARS = 800;
+/** Upper bound on concurrent in-flight chunk requests within a single job. */
+export const AI_CHUNK_CONCURRENCY = 5;
 
-/** Attempts per chunk before entering the "stuck" state that lets the user press retry. */
+/** Attempts per chunk before the whole job aborts with an error. */
 const PER_CHUNK_ATTEMPTS = 3;
 /** Backoff between automatic retries: 1s, 2s. */
 const BACKOFF_MS = [1000, 2000];
@@ -26,9 +28,9 @@ interface QueueItem {
 }
 
 /**
- * Module-level FIFO queue. Clicking "追加" while a batch is in flight adds
- * to this queue; jobs run one-at-a-time to avoid racing on chapter indices
- * and entry ordering.
+ * Module-level FIFO queue across runAiAnnotate() invocations. Each job owns
+ * the reader state while it runs; within a job, chunks fan out up to
+ * AI_CHUNK_CONCURRENCY at a time.
  */
 const queue: QueueItem[] = [];
 let pumping = false;
@@ -47,12 +49,7 @@ function runLabel(
   const base =
     doneChunks >= totalChunks
       ? `${prefix} · 完成`
-      : `${prefix} · 处理第 ${Math.min(doneChunks + 1, totalChunks)} / ${totalChunks} 段`;
-  return queueAhead > 0 ? `${base} · 队列还有 ${queueAhead} 批` : base;
-}
-
-function stuckLabel(failedIndex: number, totalChunks: number, queueAhead: number) {
-  const base = `第 ${failedIndex + 1} / ${totalChunks} 段失败 · 点击横幅「重试」`;
+      : `${prefix} · ${doneChunks} / ${totalChunks} 段已入库`;
   return queueAhead > 0 ? `${base} · 队列还有 ${queueAhead} 批` : base;
 }
 
@@ -97,27 +94,6 @@ async function attemptChunkWithBackoff(
   return null;
 }
 
-function waitForRetryOrAbort(
-  signal: AbortSignal,
-  attachResume: (resolve: () => void) => void,
-): Promise<boolean> {
-  return new Promise((resolve) => {
-    if (signal.aborted) {
-      resolve(false);
-      return;
-    }
-    const onAbort = () => {
-      signal.removeEventListener('abort', onAbort);
-      resolve(false);
-    };
-    signal.addEventListener('abort', onAbort, { once: true });
-    attachResume(() => {
-      signal.removeEventListener('abort', onAbort);
-      resolve(true);
-    });
-  });
-}
-
 async function runOneJob({ text, settings, mode, toast }: RunArgs): Promise<boolean> {
   const value = text.trim();
   if (!value) {
@@ -141,80 +117,87 @@ async function runOneJob({ text, settings, mode, toast }: RunArgs): Promise<bool
 
   const total = chunks.length;
   const controller = new AbortController();
-  const store = useAppStore.getState();
-  const batchStartIndex = mode === 'replace' ? 0 : store.entries.length;
+  const batchStartIndex = mode === 'replace' ? 0 : useAppStore.getState().entries.length;
   let chapterAdded = false;
-  let resumeFn: (() => void) | null = null;
+  let failureMsg: string | null = null;
 
-  const publishProgress = (done: number, stuckIndex: number | null) => {
-    const queueAhead = queue.length;
+  const results: Array<AnnotatedEntry[] | null | undefined> = new Array(total);
+  let nextChunk = 0;
+  let flushIdx = 0;
+  let doneChunks = 0;
+  let flushChain: Promise<void> = Promise.resolve();
+
+  const publishProgress = (done: number) => {
     useAppStore.getState().setBatchAiProgress({
-      label:
-        stuckIndex !== null
-          ? stuckLabel(stuckIndex, total, queueAhead)
-          : runLabel(done, total, mode, queueAhead),
+      label: runLabel(done, total, mode, queue.length),
       done,
       total,
       onCancel: () => controller.abort(),
-      onRetry:
-        stuckIndex !== null
-          ? () => {
-              const fn = resumeFn;
-              resumeFn = null;
-              fn?.();
-            }
-          : undefined,
-      queueAhead,
+      queueAhead: queue.length,
     });
   };
 
+  const flushReady = () => {
+    while (flushIdx < total && results[flushIdx] !== undefined) {
+      const annotated = results[flushIdx];
+      if (annotated === null) {
+        failureMsg = `第 ${flushIdx + 1} / ${total} 段失败`;
+        controller.abort();
+        return;
+      }
+      const newEntries: Entry[] = annotated.map((a) => ({
+        id: '',
+        jp: a.jp,
+        ch: a.ch,
+        words: a.words,
+      }));
+      const s = useAppStore.getState();
+      if (mode === 'replace' && flushIdx === 0) {
+        s.setEntries(newEntries.map((e, idx) => ({ ...e, id: `entry-${idx}` })));
+      } else {
+        s.appendEntries(newEntries);
+      }
+
+      if (!chapterAdded) {
+        const after = useAppStore.getState();
+        const num = after.chapters.length + 1;
+        const title = mode === 'replace' ? `段落 ${num}` : `追加段落 ${num}`;
+        after.setChapters([...after.chapters, { title, index: batchStartIndex }]);
+        chapterAdded = true;
+      }
+
+      flushIdx++;
+      doneChunks++;
+      publishProgress(doneChunks);
+    }
+  };
+
   if (mode === 'replace') {
-    store.setEntries([]);
+    useAppStore.getState().setEntries([]);
   }
-  publishProgress(0, null);
+  publishProgress(0);
 
-  let i = 0;
-  while (i < total) {
-    if (controller.signal.aborted) break;
-
-    publishProgress(i, null);
-    const annotated = await attemptChunkWithBackoff(chunks[i], settings, controller.signal, i);
-
-    if (controller.signal.aborted) break;
-
-    if (!annotated) {
-      toast(`第 ${i + 1} / ${total} 段失败，横幅上点「重试」继续`, 'error');
-      publishProgress(i, i);
-      const resumed = await waitForRetryOrAbort(controller.signal, (r) => { resumeFn = r; });
-      if (!resumed) break;
-      continue;
+  const worker = async () => {
+    while (!controller.signal.aborted) {
+      const idx = nextChunk++;
+      if (idx >= total) return;
+      const annotated = await attemptChunkWithBackoff(chunks[idx], settings, controller.signal, idx);
+      if (controller.signal.aborted) return;
+      results[idx] = annotated;
+      // Chain flushes so they serialize without interleaving between workers.
+      flushChain = flushChain.then(flushReady);
+      await flushChain;
     }
+  };
 
-    const newEntries: Entry[] = annotated.map((a) => ({
-      id: '',
-      jp: a.jp,
-      ch: a.ch,
-      words: [],
-    }));
-    const s = useAppStore.getState();
-    if (mode === 'replace' && i === 0) {
-      s.setEntries(newEntries.map((e, idx) => ({ ...e, id: `entry-${idx}` })));
-    } else {
-      s.appendEntries(newEntries);
-    }
+  const poolSize = Math.min(AI_CHUNK_CONCURRENCY, total);
+  await Promise.all(Array.from({ length: poolSize }, worker));
+  await flushChain;
 
-    if (!chapterAdded) {
-      const after = useAppStore.getState();
-      const num = after.chapters.length + 1;
-      const title = mode === 'replace' ? `段落 ${num}` : `追加段落 ${num}`;
-      after.setChapters([...after.chapters, { title, index: batchStartIndex }]);
-      chapterAdded = true;
-    }
-
-    i++;
-    publishProgress(i, null);
+  if (failureMsg) {
+    toast(`${failureMsg}，请重试该批次`, 'error');
+    return false;
   }
-
   if (controller.signal.aborted) {
     toast('已中止 AI 处理', 'info');
     return false;
@@ -250,7 +233,6 @@ export function runAiAnnotate(job: RunArgs): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
     queue.push({ job, resolve });
     refreshQueueAhead();
-    // Kick off the pump if it isn't already running.
     void pump();
   });
 }

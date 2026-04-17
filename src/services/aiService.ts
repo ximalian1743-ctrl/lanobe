@@ -1,11 +1,9 @@
 import { UiLanguage } from '../i18n/ui';
 import { Entry } from '../types';
 import { formatBracketReadingsAsParen } from '../lib/textCleanup';
+import { parseTxt } from '../lib/parser';
 
-export interface AnnotatedEntry {
-  jp: string;
-  ch: string;
-}
+export type AnnotatedEntry = Omit<Entry, 'id'>;
 
 export interface EntryExplanation {
   overview: string;
@@ -204,6 +202,46 @@ ${batch.map((excerpt, index) => `Segment ${index + 1}:\n${excerpt.text}`).join('
   return allChapters;
 }
 
+const ANNOTATE_SYSTEM_PROMPT = `你是一个专业的日语翻译和学习助手。将用户提供的日语文本逐句转换为特定格式，每句作为一个块，块之间必须有一个空行。
+
+严格按照以下格式输出（不要 Markdown 代码块、不要解释、不要总结）：
+
+ja: <带平假名注音的日语原句，每个汉字/复合词统一使用「汉字[假名]」格式，不要拆分复合词>
+zh: <简体中文翻译>
+word: <日文单词> | <假名> | <中文含义>
+word: <日文单词> | <假名> | <中文含义>
+
+ja: <下一句…>
+…
+
+注意：
+- 汉字注音示例：彼女[かのじょ]、電線[でんせん]、食[た]べる、今日[きょう]。不要写成 彼[かの]女[じょ]。
+- 纯假名或 ASCII / 数字不加括号。
+- 每个 ja 块至少提供 1 个 word 行，常见词也可以给；无汉字句可以不给 word。
+- 只输出 ja:/zh:/word: 三种行，不要其他任何内容。`;
+
+function normalizeAnnotatedBlocks(raw: string): string {
+  // Keep only lines that match the output grammar; drop preamble, fences,
+  // trailing explanations, etc. that weaker models sometimes emit.
+  const kept = raw
+    .split('\n')
+    .map((line) => line.replace(/^\uFEFF/, ''))
+    .filter((line) => {
+      const t = line.trim();
+      return (
+        t.startsWith('ja:') ||
+        t.startsWith('jp:') ||
+        t.startsWith('zh:') ||
+        t.startsWith('ch:') ||
+        t.startsWith('word:')
+      );
+    })
+    .join('\n');
+  // Guarantee a blank line before every `ja:` / `jp:` so parseTxt can split
+  // blocks even when the model forgot the gap.
+  return kept.replace(/\n(ja:|jp:)/gi, '\n\n$1').trim();
+}
+
 export async function annotateTextWithAi({
   text,
   apiKey,
@@ -227,38 +265,14 @@ export async function annotateTextWithAi({
   const proxyUrl = getAiProxyUrl(backendApiBase);
   const reasoningEffort = getReasoningEffort(safeModel);
 
-  const prompt = `You process Japanese text for a bilingual reader.
-
-Task for the passage below:
-1. Split it into natural sentences. Split on 。！？!? and between quotes/paragraphs. Preserve the original punctuation inside each sentence.
-2. Furigana: append hiragana reading in square brackets after every kanji word. Treat each compound word as ONE bracket unit — NEVER split a compound across brackets.
-   CORRECT:   彼女[かのじょ], 電線[でんせん], 漢字[かんじ], 食[た]べる, 先生[せんせい], 今日[きょう]
-   WRONG:     彼[かの]女[じょ], 電[でん]線[せん], 食[た]べ, 先[せん]生[せい]
-   Do not bracket pure kana. Do not bracket ASCII/numbers.
-3. Chinese: for each sentence, provide an accurate, natural Simplified Chinese translation.
-4. Do not add sentences or content that is not in the input. Keep the original order.
-
-Return JSON ONLY, shape:
-{"entries":[{"jp":"彼女[かのじょ]は本[ほん]を読[よ]む。","ch":"她读书。"}, ...]}
-
-Passage:
-<<<
-${text}
->>>`;
-
   const requestBody: Record<string, unknown> = {
     apiBase: safeApiBase,
     apiKey: safeApiKey,
     model: safeModel,
     messages: [
-      {
-        role: 'system',
-        content:
-          'You are a precise Japanese text processor. Output compact JSON only, no prose, no markdown fences.',
-      },
-      { role: 'user', content: prompt },
+      { role: 'system', content: ANNOTATE_SYSTEM_PROMPT },
+      { role: 'user', content: text },
     ],
-    response_format: { type: 'json_object' },
     temperature: 0.1,
   };
   if (reasoningEffort) requestBody.reasoning_effort = reasoningEffort;
@@ -276,17 +290,14 @@ ${text}
   }
 
   const data = await response.json();
-  const content = data.choices?.[0]?.message?.content || '';
-  const parsed = parseJsonContent(content);
-  const rawEntries = Array.isArray(parsed?.entries) ? parsed.entries : [];
+  const content: string = data.choices?.[0]?.message?.content || '';
+  const normalized = normalizeAnnotatedBlocks(content);
+  if (!normalized) throw new Error('AI returned no sentences');
 
-  const cleaned: AnnotatedEntry[] = [];
-  for (const item of rawEntries) {
-    const jp = typeof item?.jp === 'string' ? item.jp.trim() : '';
-    const ch = typeof item?.ch === 'string' ? item.ch.trim() : '';
-    if (!jp && !ch) continue;
-    cleaned.push({ jp, ch });
-  }
+  const parsed = parseTxt(normalized);
+  const cleaned: AnnotatedEntry[] = parsed
+    .map(({ id: _id, ...rest }) => rest)
+    .filter((entry) => entry.jp || entry.ch);
   if (!cleaned.length) throw new Error('AI returned no sentences');
   return cleaned;
 }

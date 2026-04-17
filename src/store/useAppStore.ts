@@ -66,6 +66,7 @@ interface AppState {
 
   setUiLanguage: (uiLanguage: UiLanguage) => void;
   setEntries: (entries: Entry[]) => void;
+  appendEntries: (entries: Entry[]) => void;
   setCurrentIndex: (index: number) => void;
   setReaderPageIndex: (pageIndex: number) => void;
   setIsPlaying: (playing: boolean) => void;
@@ -209,6 +210,16 @@ export const useAppStore = create<AppState>()(
           fetchErrors: {},
           isPlaying: false,
           chapters: [],
+        }),
+      appendEntries: (newEntries) =>
+        set((state) => {
+          if (!newEntries.length) return {};
+          const base = state.entries.length;
+          const reindexed = newEntries.map((entry, i) => ({
+            ...entry,
+            id: `entry-${base + i}`,
+          }));
+          return { entries: [...state.entries, ...reindexed] };
         }),
       setCurrentIndex: (currentIndex) =>
         set({ currentIndex, readerPageIndex: getPageIndexForEntry(currentIndex) }),

@@ -2,6 +2,11 @@ import { UiLanguage } from '../i18n/ui';
 import { Entry } from '../types';
 import { formatBracketReadingsAsParen } from '../lib/textCleanup';
 
+export interface AnnotatedEntry {
+  jp: string;
+  ch: string;
+}
+
 export interface EntryExplanation {
   overview: string;
   translation: string;
@@ -197,6 +202,90 @@ ${batch.map((excerpt, index) => `Segment ${index + 1}:\n${excerpt.text}`).join('
   }
 
   return allChapters;
+}
+
+export async function annotateTextWithAi({
+  text,
+  apiKey,
+  apiBase,
+  model,
+  backendApiBase = '',
+  signal,
+}: {
+  text: string;
+  apiKey: string;
+  apiBase: string;
+  model: string;
+  backendApiBase?: string;
+  signal?: AbortSignal;
+}): Promise<AnnotatedEntry[]> {
+  const safeApiBase = apiBase || 'https://sub.jlypx.de/v1';
+  const safeApiKey = apiKey.trim();
+  const safeModel = model || 'gpt-5.4';
+  if (!safeApiKey) throw new Error('Missing AI API key');
+
+  const proxyUrl = getAiProxyUrl(backendApiBase);
+  const reasoningEffort = getReasoningEffort(safeModel);
+
+  const prompt = `You process Japanese text for a bilingual reader.
+
+Task for the passage below:
+1. Split it into natural sentences. Split on 。！？!? and between quotes/paragraphs. Preserve the original punctuation inside each sentence.
+2. For EVERY kanji word, append its hiragana reading in square brackets right after the word, e.g. 漢字[かんじ]. Group consecutive kanji of a single word together (食[た]べる, not 食[た]べ). Do not bracket pure kana.
+3. For each sentence, provide an accurate, natural Simplified Chinese translation.
+4. Do not add sentences or content that is not in the input. Keep the original order.
+
+Return JSON ONLY, shape:
+{"entries":[{"jp":"漢字[かんじ]の本[ほん]。","ch":"汉字的书。"}, ...]}
+
+Passage:
+<<<
+${text}
+>>>`;
+
+  const requestBody: Record<string, unknown> = {
+    apiBase: safeApiBase,
+    apiKey: safeApiKey,
+    model: safeModel,
+    messages: [
+      {
+        role: 'system',
+        content:
+          'You are a precise Japanese text processor. Output compact JSON only, no prose, no markdown fences.',
+      },
+      { role: 'user', content: prompt },
+    ],
+    response_format: { type: 'json_object' },
+    temperature: 0.1,
+  };
+  if (reasoningEffort) requestBody.reasoning_effort = reasoningEffort;
+
+  const response = await fetch(proxyUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody),
+    signal,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `API Error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content || '';
+  const parsed = parseJsonContent(content);
+  const rawEntries = Array.isArray(parsed?.entries) ? parsed.entries : [];
+
+  const cleaned: AnnotatedEntry[] = [];
+  for (const item of rawEntries) {
+    const jp = typeof item?.jp === 'string' ? item.jp.trim() : '';
+    const ch = typeof item?.ch === 'string' ? item.ch.trim() : '';
+    if (!jp && !ch) continue;
+    cleaned.push({ jp, ch });
+  }
+  if (!cleaned.length) throw new Error('AI returned no sentences');
+  return cleaned;
 }
 
 export async function explainEntryWithAi({

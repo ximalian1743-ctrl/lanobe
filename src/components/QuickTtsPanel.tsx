@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Download, Loader2, Play, Volume2 } from 'lucide-react';
+import { ChevronDown, Download, Loader2, Play, Sparkles, Volume2 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useUiText } from '../hooks/useUiText';
+import { annotateTextWithAi } from '../services/aiService';
+import { chunkJapaneseText } from '../lib/jpChunker';
+import { Entry } from '../types';
+import { useToast } from './Toast';
 
 type LangKey = 'auto' | 'ja' | 'zh';
 
@@ -35,6 +39,8 @@ const VOICES: Record<'ja' | 'zh', VoiceOption[]> = {
 const RATE_PRESETS = [0.8, 1.0, 1.2, 1.5];
 const STORAGE_KEY = 'lanobe-quick-tts-state-v1';
 const MAX_CHARS = 2000;
+const AI_MAX_CHARS = 20000;
+const AI_CHUNK_CHARS = 800;
 
 function detectLang(text: string): 'ja' | 'zh' {
   if (/[\u3040-\u309f\u30a0-\u30ff]/.test(text)) return 'ja';
@@ -58,8 +64,11 @@ interface PersistedState {
 
 export function QuickTtsPanel() {
   const settings = useAppStore((s) => s.settings);
+  const batchAiProgress = useAppStore((s) => s.batchAiProgress);
   const { text: ui } = useUiText();
   const t = ui.quickTts;
+  const { toast } = useToast();
+  const aiBusy = !!batchAiProgress;
 
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
@@ -212,6 +221,94 @@ export function QuickTtsPanel() {
     a.remove();
   };
 
+  const handleAiAnnotate = async () => {
+    if (aiBusy) return;
+    const value = text.trim();
+    if (!value) {
+      toast('请输入日语文本', 'error');
+      return;
+    }
+    if (value.length > AI_MAX_CHARS) {
+      toast(`文本过长（AI 注音最多 ${AI_MAX_CHARS} 字）`, 'error');
+      return;
+    }
+    const apiKey = settings.aiApiKey.trim();
+    if (!apiKey) {
+      toast('请先在设置中填入 AI API 密钥', 'error');
+      return;
+    }
+
+    const chunks = chunkJapaneseText(value, AI_CHUNK_CHARS);
+    if (!chunks.length) {
+      toast('未识别到可处理的文本', 'error');
+      return;
+    }
+
+    // Stop any ongoing TTS to avoid audio fighting with the reader.
+    inflightRef.current?.abort();
+    audioRef.current?.pause();
+
+    const controller = new AbortController();
+    const store = useAppStore.getState();
+    const label = 'AI 分句 · 注音 · 翻译';
+
+    store.setEntries([]);
+    store.setBatchAiProgress({
+      label,
+      done: 0,
+      total: chunks.length,
+      onCancel: () => controller.abort(),
+    });
+
+    try {
+      for (let i = 0; i < chunks.length; i++) {
+        if (controller.signal.aborted) break;
+        const annotated = await annotateTextWithAi({
+          text: chunks[i],
+          apiKey,
+          apiBase: settings.aiApiBase,
+          model: settings.aiModel,
+          backendApiBase: settings.apiBase,
+          signal: controller.signal,
+        });
+        const newEntries: Entry[] = annotated.map((a) => ({
+          id: '',
+          jp: a.jp,
+          ch: a.ch,
+          words: [],
+        }));
+        const s = useAppStore.getState();
+        if (i === 0) {
+          s.setEntries(
+            newEntries.map((e, idx) => ({ ...e, id: `entry-${idx}` })),
+          );
+        } else {
+          s.appendEntries(newEntries);
+        }
+        s.setBatchAiProgress({
+          label,
+          done: i + 1,
+          total: chunks.length,
+          onCancel: () => controller.abort(),
+        });
+      }
+      if (!controller.signal.aborted) {
+        toast('AI 注音翻译完成 · 可开始播放', 'success');
+      } else {
+        toast('已中止 AI 处理', 'info');
+      }
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') {
+        toast('已中止 AI 处理', 'info');
+      } else {
+        console.error('AI annotate error:', err);
+        toast((err as Error).message || 'AI 处理失败', 'error');
+      }
+    } finally {
+      useAppStore.getState().setBatchAiProgress(null);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
@@ -317,11 +414,21 @@ export function QuickTtsPanel() {
             <button
               type="button"
               onClick={busy ? handleStop : handleSynth}
-              disabled={!busy && text.trim().length === 0}
+              disabled={(!busy && text.trim().length === 0) || aiBusy}
               className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/20 transition-all duration-150 hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400 disabled:shadow-none"
             >
               {busy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
               {busy ? t.stop : t.play}
+            </button>
+            <button
+              type="button"
+              onClick={handleAiAnnotate}
+              disabled={aiBusy || busy || text.trim().length === 0}
+              title="调用 AI 将整段文本切分为句子，并为每句生成平假名注音与中文翻译，然后加载到阅读器播放"
+              className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/15 px-4 py-2 text-xs font-bold text-amber-100 transition-all duration-150 hover:border-amber-300/70 hover:bg-amber-500/25 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {aiBusy ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+              {aiBusy ? 'AI 处理中…' : 'AI 注音 + 翻译'}
             </button>
             <button
               type="button"

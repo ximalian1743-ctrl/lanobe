@@ -148,10 +148,13 @@ app.post('/api/ai-chat', async (req, res) => {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
+      // Force non-streaming: some OpenAI-compat endpoints (e.g. grok2api) default to SSE,
+      // which would break the response.json() parse below.
       body: JSON.stringify({
         model,
         messages,
         ...passthrough,
+        stream: false,
       }),
     });
 

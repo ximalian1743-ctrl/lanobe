@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Download, FileText, Loader2, Play, Sparkles, Upload, Volume2, X } from 'lucide-react';
+import { ChevronDown, Download, FileText, Loader2, Play, Settings, Sparkles, Upload, Volume2, X } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useUiText } from '../hooks/useUiText';
 import { runAiAnnotate, AI_MAX_CHARS } from '../services/aiAnnotate';
 import { stripBracketReadings } from '../lib/textCleanup';
 import { splitOversizeTxt, downloadSplits } from '../lib/txtFileSplit';
+import { SettingsModal } from './SettingsModal';
 import { useToast } from './Toast';
 
 interface PendingFile {
@@ -53,12 +54,6 @@ const RATE_PRESETS = [0.8, 1.0, 1.2, 1.5];
 const STORAGE_KEY = 'lanobe-quick-tts-state-v1';
 const MAX_CHARS = 2000;
 
-const N_MODE_CONFIG = {
-  aiApiBase: 'https://grok.ximalian.cc.cd/v1',
-  aiApiKey: 'zgt20031204',
-  aiModel: 'grok-4.20-expert',
-} as const;
-
 function detectLang(text: string): 'ja' | 'zh' {
   if (/[\u3040-\u309f\u30a0-\u30ff]/.test(text)) return 'ja';
   if (/[\u4e00-\u9fff]/.test(text)) return 'zh';
@@ -77,7 +72,6 @@ interface PersistedState {
   voice?: string;
   rate?: number;
   open?: boolean;
-  nMode?: boolean;
 }
 
 export function QuickTtsPanel() {
@@ -98,7 +92,7 @@ export function QuickTtsPanel() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [nMode, setNMode] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const inflightRef = useRef<AbortController | null>(null);
@@ -115,7 +109,6 @@ export function QuickTtsPanel() {
       if (typeof s.rate === 'number') setRate(s.rate);
       if (typeof s.voice === 'string') setVoice(s.voice);
       if (typeof s.open === 'boolean') setOpen(s.open);
-      if (typeof s.nMode === 'boolean') setNMode(s.nMode);
     } catch {
       // ignore
     }
@@ -126,12 +119,12 @@ export function QuickTtsPanel() {
     try {
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ text, lang, voice, rate, open, nMode } satisfies PersistedState),
+        JSON.stringify({ text, lang, voice, rate, open } satisfies PersistedState),
       );
     } catch {
       // ignore quota errors
     }
-  }, [text, lang, voice, rate, open, nMode]);
+  }, [text, lang, voice, rate, open]);
 
   const effectiveLang: 'ja' | 'zh' = useMemo(
     () => (lang === 'auto' ? detectLang(text) : lang),
@@ -336,15 +329,11 @@ export function QuickTtsPanel() {
 
     setFiles([]);
 
-    const effectiveSettings = nMode
-      ? { ...settings, ...N_MODE_CONFIG }
-      : settings;
-
     let isFirst = useAppStore.getState().entries.length === 0;
     for (const job of jobs) {
       void runAiAnnotate({
         text: job.text,
-        settings: effectiveSettings,
+        settings,
         mode: isFirst ? 'replace' : 'append',
         toast,
       });
@@ -541,28 +530,25 @@ export function QuickTtsPanel() {
             </div>
           </div>
 
-          <label className="mt-3 flex cursor-pointer select-none items-center justify-between gap-3 rounded-2xl border border-slate-700/50 bg-slate-950/40 px-3 py-2.5">
-            <span className="flex min-w-0 flex-col">
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-slate-700/50 bg-slate-950/40 px-3 py-2.5">
+            <div className="flex min-w-0 flex-col">
               <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-300">
-                <Sparkles size={12} className={nMode ? 'text-fuchsia-300' : 'text-slate-500'} />
-                {t.nModeLabel}
+                <Settings size={12} className="text-amber-300" />
+                {t.aiConfigLabel}
               </span>
               <span className="mt-0.5 truncate text-[10px] text-slate-500">
-                {nMode ? t.nModeOnHint : t.nModeOffHint}
+                {settings.aiModel ? format(t.aiConfigCurrent, { model: settings.aiModel }) : t.aiConfigEmpty}
               </span>
-            </span>
-            <span className="relative shrink-0">
-              <input
-                type="checkbox"
-                checked={nMode}
-                onChange={(e) => setNMode(e.target.checked)}
-                className="peer sr-only"
-                aria-label={t.nModeLabel}
-              />
-              <span className="flex h-6 w-11 items-center rounded-full bg-slate-700 transition-colors peer-checked:bg-fuchsia-500 peer-focus-visible:ring-2 peer-focus-visible:ring-fuchsia-300" />
-              <span className="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-slate-100 shadow-sm transition-transform peer-checked:translate-x-5" />
-            </span>
-          </label>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-200 transition-colors hover:border-amber-300/70 hover:bg-amber-500/20"
+            >
+              <Settings size={12} />
+              {t.aiConfigButton}
+            </button>
+          </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <button
@@ -604,6 +590,10 @@ export function QuickTtsPanel() {
           />
         </div>
       )}
+
+      {settingsOpen ? (
+        <SettingsModal onClose={() => setSettingsOpen(false)} initialTab="advanced" />
+      ) : null}
     </div>
   );
 }

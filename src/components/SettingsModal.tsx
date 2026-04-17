@@ -9,6 +9,29 @@ import { DataExportImportSection } from './DataExportImportSection';
 
 type TabId = 'quick' | 'audio' | 'display' | 'advanced';
 
+interface AiPreset {
+  id: string;
+  label: string;
+  aiApiBase: string;
+  aiModel: string;
+}
+
+const AI_PRESETS: AiPreset[] = [
+  { id: 'grok-420-fast',        label: 'Grok 4.20 Fast (推荐 · 最快)',  aiApiBase: 'https://grok.ximalian.cc.cd/v1', aiModel: 'grok-4.20-fast' },
+  { id: 'grok-420-auto',        label: 'Grok 4.20 Auto',               aiApiBase: 'https://grok.ximalian.cc.cd/v1', aiModel: 'grok-4.20-auto' },
+  { id: 'grok-420-expert',      label: 'Grok 4.20 Expert (慢 · 最强)', aiApiBase: 'https://grok.ximalian.cc.cd/v1', aiModel: 'grok-4.20-expert' },
+  { id: 'grok-420-reasoning',   label: 'Grok 4.20 Reasoning',          aiApiBase: 'https://grok.ximalian.cc.cd/v1', aiModel: 'grok-4.20-0309-reasoning' },
+  { id: 'gpt-5',                label: 'GPT-5.4',                      aiApiBase: 'https://sub.jlypx.de/v1',        aiModel: 'gpt-5.4' },
+  { id: 'gpt-4o-mini',          label: 'GPT-4o mini',                  aiApiBase: 'https://sub.jlypx.de/v1',        aiModel: 'gpt-4o-mini' },
+  { id: 'gemini-flash',         label: 'Gemini 2.5 Flash',             aiApiBase: 'https://sub.jlypx.de/v1',        aiModel: 'gemini-2.5-flash' },
+  { id: 'gemini-pro',           label: 'Gemini 2.5 Pro',               aiApiBase: 'https://sub.jlypx.de/v1',        aiModel: 'gemini-2.5-pro' },
+];
+
+function matchPreset(aiApiBase: string, aiModel: string): string {
+  const hit = AI_PRESETS.find((p) => p.aiApiBase === aiApiBase && p.aiModel === aiModel);
+  return hit?.id ?? 'custom';
+}
+
 function RateControl({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   return (
     <label className="space-y-2">
@@ -29,7 +52,7 @@ function RateControl({ label, value, onChange }: { label: string; value: number;
   );
 }
 
-export function SettingsModal({ onClose }: { onClose: () => void }) {
+export function SettingsModal({ onClose, initialTab }: { onClose: () => void; initialTab?: TabId }) {
   const {
     entries,
     currentIndex,
@@ -43,9 +66,10 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   } = useAppStore();
   const { text } = useUiText();
   useEscClose(onClose);
-  const [tab, setTab] = useState<TabId>('quick');
+  const [tab, setTab] = useState<TabId>(initialTab ?? 'quick');
   const [search, setSearch] = useState('');
   const [jumpPercent, setJumpPercent] = useState(0);
+  const activePreset = matchPreset(settings.aiApiBase || '', settings.aiModel || '');
   const panelClass = 'rounded-[28px] border border-slate-800/70 bg-[linear-gradient(180deg,_rgba(15,23,42,0.9),_rgba(2,6,23,0.84))] p-5 shadow-[0_18px_45px_rgba(2,6,23,0.18)] transition-transform duration-200 hover:-translate-y-0.5';
 
   const tabs: Array<{ id: TabId; label: string; icon: typeof Settings2 }> = [
@@ -399,7 +423,25 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             <div className="space-y-5">
               <section className={panelClass}>
                 <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-blue-400">{text.settings.aiSection}</h3>
-                <div className="mt-4 space-y-3">
+                <label className="mt-4 block space-y-2">
+                  <span className="text-sm text-slate-300">{text.settings.aiPresetLabel}</span>
+                  <select
+                    value={activePreset}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      if (id === 'custom') return;
+                      const preset = AI_PRESETS.find((p) => p.id === id);
+                      if (preset) updateSettings({ aiApiBase: preset.aiApiBase, aiModel: preset.aiModel });
+                    }}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-slate-200"
+                  >
+                    {AI_PRESETS.map((preset) => (
+                      <option key={preset.id} value={preset.id}>{preset.label}</option>
+                    ))}
+                    <option value="custom">{text.settings.aiPresetCustom}</option>
+                  </select>
+                </label>
+                <div className="mt-4 grid gap-3">
                   <input type="text" value={settings.aiApiBase || ''} onChange={(e) => updateSettings({ aiApiBase: e.target.value })} placeholder={text.settings.apiBaseUrl} className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-slate-200" />
                   <input type="password" value={settings.aiApiKey || ''} onChange={(e) => updateSettings({ aiApiKey: e.target.value })} placeholder={text.settings.apiKey} className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-slate-200" />
                   <input type="text" value={settings.aiModel || ''} onChange={(e) => updateSettings({ aiModel: e.target.value })} placeholder={text.settings.model} className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-slate-200" />

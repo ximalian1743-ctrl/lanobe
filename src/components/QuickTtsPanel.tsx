@@ -1,10 +1,24 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Download, Loader2, Play, Sparkles, Volume2 } from 'lucide-react';
+import { ChevronDown, Download, FileText, Loader2, Play, Sparkles, Upload, Volume2, X } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useUiText } from '../hooks/useUiText';
-import { runAiAnnotate } from '../services/aiAnnotate';
+import { runAiAnnotate, AI_MAX_CHARS } from '../services/aiAnnotate';
 import { stripBracketReadings } from '../lib/textCleanup';
+import { splitOversizeTxt, downloadSplits } from '../lib/txtFileSplit';
 import { useToast } from './Toast';
+
+interface PendingFile {
+  id: string;
+  name: string;
+  content: string;
+}
+
+function makeFileId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `f-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 type LangKey = 'auto' | 'ja' | 'zh';
 
@@ -39,6 +53,12 @@ const RATE_PRESETS = [0.8, 1.0, 1.2, 1.5];
 const STORAGE_KEY = 'lanobe-quick-tts-state-v1';
 const MAX_CHARS = 2000;
 
+const N_MODE_CONFIG = {
+  aiApiBase: 'https://grok.ximalian.cc.cd/v1',
+  aiApiKey: 'zgt20031204',
+  aiModel: 'grok-4.20-expert',
+} as const;
+
 function detectLang(text: string): 'ja' | 'zh' {
   if (/[\u3040-\u309f\u30a0-\u30ff]/.test(text)) return 'ja';
   if (/[\u4e00-\u9fff]/.test(text)) return 'zh';
@@ -57,12 +77,13 @@ interface PersistedState {
   voice?: string;
   rate?: number;
   open?: boolean;
+  nMode?: boolean;
 }
 
 export function QuickTtsPanel() {
   const settings = useAppStore((s) => s.settings);
   const batchAiProgress = useAppStore((s) => s.batchAiProgress);
-  const { text: ui } = useUiText();
+  const { text: ui, format } = useUiText();
   const t = ui.quickTts;
   const { toast } = useToast();
   const aiBusy = !!batchAiProgress;
@@ -75,9 +96,13 @@ export function QuickTtsPanel() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string>('');
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [files, setFiles] = useState<PendingFile[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [nMode, setNMode] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const inflightRef = useRef<AbortController | null>(null);
+  const filePickerRef = useRef<HTMLInputElement | null>(null);
 
   // Hydrate persisted state once
   useEffect(() => {
@@ -90,6 +115,7 @@ export function QuickTtsPanel() {
       if (typeof s.rate === 'number') setRate(s.rate);
       if (typeof s.voice === 'string') setVoice(s.voice);
       if (typeof s.open === 'boolean') setOpen(s.open);
+      if (typeof s.nMode === 'boolean') setNMode(s.nMode);
     } catch {
       // ignore
     }
@@ -100,12 +126,12 @@ export function QuickTtsPanel() {
     try {
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ text, lang, voice, rate, open } satisfies PersistedState),
+        JSON.stringify({ text, lang, voice, rate, open, nMode } satisfies PersistedState),
       );
     } catch {
       // ignore quota errors
     }
-  }, [text, lang, voice, rate, open]);
+  }, [text, lang, voice, rate, open, nMode]);
 
   const effectiveLang: 'ja' | 'zh' = useMemo(
     () => (lang === 'auto' ? detectLang(text) : lang),
@@ -226,16 +252,111 @@ export function QuickTtsPanel() {
     a.remove();
   };
 
+  const addFiles = async (raw: File[]) => {
+    const existingKeys = new Set(files.map((f) => `${f.name}|${f.content.length}`));
+    const accepted: PendingFile[] = [];
+    for (const file of raw) {
+      if (!file.name.toLowerCase().endsWith('.txt')) {
+        toast(format(t.filesNonTxt, { name: file.name }), 'error');
+        continue;
+      }
+      const content = (await file.text()).replace(/\r\n/g, '\n');
+      const key = `${file.name}|${content.length}`;
+      if (existingKeys.has(key)) {
+        toast(format(t.filesDuplicate, { name: file.name }), 'info');
+        continue;
+      }
+      existingKeys.add(key);
+      accepted.push({ id: makeFileId(), name: file.name, content });
+    }
+    if (accepted.length) setFiles((prev) => [...prev, ...accepted]);
+  };
+
+  const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = e.target.files;
+    if (list && list.length > 0) void addFiles(Array.from(list));
+    e.target.value = '';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const list = e.dataTransfer.files;
+    if (list && list.length > 0) void addFiles(Array.from(list));
+  };
+
+  const removeFile = (id: string) => setFiles((prev) => prev.filter((f) => f.id !== id));
+
   const handleAiAnnotate = async () => {
     if (aiBusy) return;
+    const typedText = text.trim();
+    if (!typedText && files.length === 0) {
+      toast(t.filesEmptyError, 'error');
+      return;
+    }
+
+    const oversize = files.filter((f) => f.content.length > AI_MAX_CHARS);
+    if (oversize.length > 0) {
+      for (const file of oversize) {
+        const { parts } = splitOversizeTxt(file.content);
+        await downloadSplits(file.name, parts);
+      }
+      if (oversize.length === 1) {
+        const one = oversize[0];
+        const { parts } = splitOversizeTxt(one.content);
+        toast(
+          format(t.filesOversizeSingle, { name: one.name, cap: AI_MAX_CHARS, n: parts.length }),
+          'info',
+        );
+      } else {
+        toast(
+          format(t.filesOversizeMulti, { count: oversize.length, cap: AI_MAX_CHARS }),
+          'info',
+        );
+      }
+      setFiles([]);
+      return;
+    }
+
     inflightRef.current?.abort();
     audioRef.current?.pause();
-    await runAiAnnotate({
-      text,
-      settings,
-      mode: 'replace',
-      toast,
-    });
+
+    type Job = { label: string; text: string; isTextJob: boolean };
+    const jobs: Job[] = [];
+    if (typedText) jobs.push({ label: '', text: typedText, isTextJob: true });
+    for (const file of files) jobs.push({ label: file.name, text: file.content, isTextJob: false });
+
+    setFiles([]);
+
+    const effectiveSettings = nMode
+      ? { ...settings, ...N_MODE_CONFIG }
+      : settings;
+
+    let isFirst = useAppStore.getState().entries.length === 0;
+    for (const job of jobs) {
+      void runAiAnnotate({
+        text: job.text,
+        settings: effectiveSettings,
+        mode: isFirst ? 'replace' : 'append',
+        toast,
+      });
+      isFirst = false;
+    }
+
+    if (jobs.length === 1) {
+      const [only] = jobs;
+      toast(only.isTextJob ? t.filesQueuedText : format(t.filesQueuedFile, { name: only.label }), 'info');
+    } else {
+      toast(format(t.filesQueuedBatch, { n: jobs.length }), 'info');
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -277,6 +398,87 @@ export function QuickTtsPanel() {
           <div className="mt-1 flex justify-between text-[10px] text-slate-600">
             <span>{t.shortcut}</span>
             <span>{text.length} / {MAX_CHARS}</span>
+          </div>
+
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={[
+              'mt-3 rounded-2xl border-2 border-dashed p-3 transition-colors',
+              isDragging
+                ? 'border-amber-400/60 bg-amber-500/10'
+                : 'border-slate-700/50 bg-slate-950/40',
+            ].join(' ')}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{t.filesTitle}</p>
+                <p className="mt-0.5 text-[10px] text-slate-600">{t.filesHint}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <input
+                  ref={filePickerRef}
+                  type="file"
+                  accept=".txt,text/plain"
+                  multiple
+                  className="sr-only"
+                  onChange={handleFilePick}
+                />
+                <button
+                  type="button"
+                  onClick={() => filePickerRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-200 transition-colors hover:border-amber-300/70 hover:bg-amber-500/20"
+                >
+                  <Upload size={12} />
+                  {t.filesPick}
+                </button>
+                {files.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setFiles([])}
+                    className="text-[11px] text-slate-500 hover:text-slate-300"
+                  >
+                    {t.filesClear}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+            {files.length > 0 ? (
+              <ul className="mt-2 flex flex-col gap-1">
+                {files.map((f) => {
+                  const oversize = f.content.length > AI_MAX_CHARS;
+                  return (
+                    <li
+                      key={f.id}
+                      className={[
+                        'flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5',
+                        oversize ? 'bg-red-500/10 ring-1 ring-red-500/30' : 'bg-slate-900/60',
+                      ].join(' ')}
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        <FileText size={12} className={['shrink-0', oversize ? 'text-red-400' : 'text-slate-500'].join(' ')} />
+                        <span className="truncate text-[11px] text-slate-200">{f.name}</span>
+                        <span className="shrink-0 font-mono text-[10px] text-slate-500">
+                          {format(t.filesSizeLabel, { kb: (f.content.length / 1024).toFixed(1) })}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeFile(f.id)}
+                        className="rounded-full p-1 text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-200"
+                        aria-label={t.filesRemove}
+                        title={t.filesRemove}
+                      >
+                        <X size={11} />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="mt-2 text-[10px] text-slate-600">{t.filesDrop}</p>
+            )}
           </div>
 
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -339,6 +541,29 @@ export function QuickTtsPanel() {
             </div>
           </div>
 
+          <label className="mt-3 flex cursor-pointer select-none items-center justify-between gap-3 rounded-2xl border border-slate-700/50 bg-slate-950/40 px-3 py-2.5">
+            <span className="flex min-w-0 flex-col">
+              <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-300">
+                <Sparkles size={12} className={nMode ? 'text-fuchsia-300' : 'text-slate-500'} />
+                {t.nModeLabel}
+              </span>
+              <span className="mt-0.5 truncate text-[10px] text-slate-500">
+                {nMode ? t.nModeOnHint : t.nModeOffHint}
+              </span>
+            </span>
+            <span className="relative shrink-0">
+              <input
+                type="checkbox"
+                checked={nMode}
+                onChange={(e) => setNMode(e.target.checked)}
+                className="peer sr-only"
+                aria-label={t.nModeLabel}
+              />
+              <span className="flex h-6 w-11 items-center rounded-full bg-slate-700 transition-colors peer-checked:bg-fuchsia-500 peer-focus-visible:ring-2 peer-focus-visible:ring-fuchsia-300" />
+              <span className="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-slate-100 shadow-sm transition-transform peer-checked:translate-x-5" />
+            </span>
+          </label>
+
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -352,7 +577,7 @@ export function QuickTtsPanel() {
             <button
               type="button"
               onClick={handleAiAnnotate}
-              disabled={aiBusy || busy || text.trim().length === 0}
+              disabled={aiBusy || busy || (text.trim().length === 0 && files.length === 0)}
               title={t.aiAnnotateTooltip}
               className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/15 px-4 py-2 text-xs font-bold text-amber-100 transition-all duration-150 hover:border-amber-300/70 hover:bg-amber-500/25 disabled:cursor-not-allowed disabled:opacity-50"
             >

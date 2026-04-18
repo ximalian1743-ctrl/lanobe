@@ -5,10 +5,12 @@ import { buildBuiltInBookProgressKey } from '../types/books';
 import { UiLanguage } from '../i18n/ui';
 import { getPageIndexForEntry } from '../lib/pagination';
 
+const DEFAULT_QWEN_API_KEY = 'sk-c25c377f389f483bba42ae242db7767b';
+
 const defaultSettings: AppSettings = {
   apiBase: '',
   ttsProvider: 'edge',
-  qwenApiKey: '',
+  qwenApiKey: DEFAULT_QWEN_API_KEY,
   doubaoCookie: '',
   cacheAheadEntries: 6,
   showJP: true,
@@ -428,6 +430,11 @@ export const useAppStore = create<AppState>()(
               merged.aiApiKey = defaultSettings.aiApiKey;
               merged.aiApiBase = defaultSettings.aiApiBase;
               merged.aiModel = defaultSettings.aiModel;
+            }
+            // Migrate existing installs that were missing the embedded Qwen3
+            // API key (older builds shipped with an empty default).
+            if (!merged.qwenApiKey?.trim()) {
+              merged.qwenApiKey = defaultSettings.qwenApiKey;
             }
             return merged;
           })(),

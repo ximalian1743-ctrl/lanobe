@@ -26,28 +26,44 @@ const EDGE_ZH: VoiceOption[] = [
   { id: 'zh-HK-HiuMaanNeural',  label: '曉曼 · 粤语女声' },
 ];
 
-// Qwen3-TTS voices are multilingual — the same voice produces natural
-// Japanese and Mandarin output depending on the input script. Keep a
-// shared list for both languages.
-const QWEN_VOICES: VoiceOption[] = [
-  { id: 'Cherry',    label: 'Cherry · 女声 / 多语种' },
-  { id: 'Chelsea',   label: 'Chelsea · 女声 / 多语种' },
-  { id: 'Jennifer',  label: 'Jennifer · 女声 / 多语种' },
-  { id: 'Katerina',  label: 'Katerina · 女声 / 多语种' },
-  { id: 'Jada',      label: 'Jada · 女声 / 多语种' },
-  { id: 'Sunny',     label: 'Sunny · 女声 / 多语种' },
-  { id: 'Kiki',      label: 'Kiki · 女声 / 多语种' },
-  { id: 'Li',        label: 'Li · 女声 / 多语种' },
-  { id: 'Ethan',     label: 'Ethan · 男声 / 多语种' },
-  { id: 'Ryan',      label: 'Ryan · 男声 / 多语种' },
-  { id: 'Elias',     label: 'Elias · 男声 / 多语种' },
-  { id: 'Dylan',     label: 'Dylan · 男声 / 多语种' },
-  { id: 'Marcus',    label: 'Marcus · 男声 / 多语种' },
-  { id: 'Roy',       label: 'Roy · 男声 / 多语种' },
-  { id: 'Peter',     label: 'Peter · 男声 / 多语种' },
-  { id: 'Rocky',     label: 'Rocky · 男声 / 多语种' },
-  { id: 'Eric',      label: 'Eric · 男声 / 多语种' },
-  { id: 'Nofish',    label: 'Nofish · 中性 / 多语种' },
+// Qwen3-TTS voices under qwen3-tts-flash. The default pair was picked
+// after listening tests: Ono Anna for Japanese, Serena for Mandarin.
+// The rest are the multilingual voices exposed by the plugin catalog —
+// all of them handle both JP and ZH input.
+const QWEN_VOICES_JP: VoiceOption[] = [
+  { id: 'Ono Anna', label: 'Ono Anna · 女声 / 日语首选' },
+  { id: 'Cherry',   label: 'Cherry · 女声 / 多语种' },
+  { id: 'Chelsea',  label: 'Chelsea · 女声 / 多语种' },
+  { id: 'Jennifer', label: 'Jennifer · 女声 / 多语种' },
+  { id: 'Katerina', label: 'Katerina · 女声 / 多语种' },
+  { id: 'Jada',     label: 'Jada · 女声 / 多语种' },
+  { id: 'Sunny',    label: 'Sunny · 女声 / 多语种' },
+  { id: 'Kiki',     label: 'Kiki · 女声 / 多语种' },
+  { id: 'Ethan',    label: 'Ethan · 男声 / 多语种' },
+  { id: 'Ryan',     label: 'Ryan · 男声 / 多语种' },
+  { id: 'Elias',    label: 'Elias · 男声 / 多语种' },
+  { id: 'Dylan',    label: 'Dylan · 男声 / 多语种' },
+  { id: 'Marcus',   label: 'Marcus · 男声 / 多语种' },
+  { id: 'Eric',     label: 'Eric · 男声 / 多语种' },
+];
+
+const QWEN_VOICES_ZH: VoiceOption[] = [
+  { id: 'Serena',   label: 'Serena · 女声 / 中文首选' },
+  { id: 'Cherry',   label: 'Cherry · 女声 / 多语种' },
+  { id: 'Chelsea',  label: 'Chelsea · 女声 / 多语种' },
+  { id: 'Jennifer', label: 'Jennifer · 女声 / 多语种' },
+  { id: 'Li',       label: 'Li · 女声 / 多语种' },
+  { id: 'Sunny',    label: 'Sunny · 女声 / 多语种' },
+  { id: 'Kiki',     label: 'Kiki · 女声 / 多语种' },
+  { id: 'Ethan',    label: 'Ethan · 男声 / 多语种' },
+  { id: 'Ryan',     label: 'Ryan · 男声 / 多语种' },
+  { id: 'Dylan',    label: 'Dylan · 男声 / 多语种' },
+  { id: 'Marcus',   label: 'Marcus · 男声 / 多语种' },
+  { id: 'Roy',      label: 'Roy · 男声 / 多语种' },
+  { id: 'Peter',    label: 'Peter · 男声 / 多语种' },
+  { id: 'Rocky',    label: 'Rocky · 男声 / 多语种' },
+  { id: 'Eric',     label: 'Eric · 男声 / 多语种' },
+  { id: 'Nofish',   label: 'Nofish · 中性 / 多语种' },
 ];
 
 // Doubao voices are fetched dynamically after cookie auth. Ship with a
@@ -62,13 +78,13 @@ const DOUBAO_VOICES: VoiceOption[] = [
 
 export function getTtsVoices(provider: TtsProvider, lang: 'jp' | 'zh'): VoiceOption[] {
   if (provider === 'edge') return lang === 'jp' ? EDGE_JA : EDGE_ZH;
-  if (provider === 'qwen3') return QWEN_VOICES;
+  if (provider === 'qwen3') return lang === 'jp' ? QWEN_VOICES_JP : QWEN_VOICES_ZH;
   return DOUBAO_VOICES;
 }
 
 export function getDefaultVoice(provider: TtsProvider, lang: 'jp' | 'zh'): string {
   if (provider === 'edge') return lang === 'jp' ? 'ja-JP-NanamiNeural' : 'zh-CN-XiaoxiaoNeural';
-  if (provider === 'qwen3') return 'Cherry';
+  if (provider === 'qwen3') return lang === 'jp' ? 'Ono Anna' : 'Serena';
   return lang === 'jp'
     ? 'ja_female_kawaii_emo_v2_mars_bigtts'
     : 'zh_female_linjianvhai_emo_v2_mars_bigtts';

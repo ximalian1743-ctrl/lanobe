@@ -10,7 +10,11 @@ export function stripFurigana(text: string) {
 }
 
 export function parseTxt(text: string): Entry[] {
-  return text
+  // Insert blank line before ja:/jp: lines not already preceded by one,
+  // so files without blank-line separators are split correctly into blocks.
+  const normalized = text.replace(/([^\r\n])\r?\n((?:jp|ja):)/gi, '$1\n\n$2');
+
+  return normalized
     .split(/\r?\n\s*\r?\n/)
     .map((block) => parseBlock(block))
     .filter((entry): entry is Omit<Entry, 'id'> => !!entry)

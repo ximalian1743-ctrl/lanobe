@@ -34,7 +34,7 @@ export function ScrollToTopButton({ targetRef, threshold = 600 }: ScrollToTopBut
     <button
       type="button"
       onClick={() => targetRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
-      className="fixed bottom-4 left-4 z-[54] flex h-10 w-10 items-center justify-center rounded-full border border-slate-700/60 bg-slate-900/95 text-slate-200 shadow-xl backdrop-blur-md hover:bg-slate-800"
+      className="fixed bottom-16 left-4 z-[54] flex h-10 w-10 items-center justify-center rounded-full border border-slate-700/60 bg-slate-900/95 text-slate-200 shadow-xl backdrop-blur-md hover:bg-slate-800"
       style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
       aria-label="回到顶部"
       title="回到顶部"
